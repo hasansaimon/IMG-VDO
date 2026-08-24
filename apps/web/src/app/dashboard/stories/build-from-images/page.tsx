@@ -304,7 +304,7 @@ export default function BuildStoryFromImages() {
 
       if (result) {
         // Navigate to the story editor
-        router.push(`/dashboard/stories/${result.story.id}/editor`);
+        router.push(`/dashboard/stories/editor?id=${result.story.id}`);
       }
     } catch (error: any) {
       console.error("Build story error:", error);
@@ -752,3 +752,4 @@ export default function BuildStoryFromImages() {
     </div>
   );
 }
+

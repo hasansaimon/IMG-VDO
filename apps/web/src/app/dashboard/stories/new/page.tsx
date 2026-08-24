@@ -50,7 +50,7 @@ export default function CreateStory() {
         },
       );
 
-      router.push(`/dashboard/stories/${response.data.id}/editor`);
+      router.push(`/dashboard/stories/editor?id=${response.data.id}`);
     } catch (error) {
       console.error("Failed to create story:", error);
       alert("Failed to create story");
@@ -220,3 +220,4 @@ export default function CreateStory() {
     </div>
   );
 }
+

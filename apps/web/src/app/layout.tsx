@@ -5,6 +5,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Image-to-Video Storybook | Create Cinematic Stories',
   description: 'Create professional visual stories with AI-powered image-to-video generation',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
@@ -22,3 +23,4 @@ export default function RootLayout({
     </html>
   );
 }
+

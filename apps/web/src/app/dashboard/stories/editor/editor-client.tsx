@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 
 const ReactQuill = dynamic(() => import("react-quill"), { ssr: false });
@@ -38,8 +38,8 @@ interface Story {
 }
 
 export default function StoryEditor() {
-  const params = useParams();
-  const storyId = params.id as string;
+  const searchParams = useSearchParams();
+  const storyId = searchParams.get("id") || "";
   const [story, setStory] = useState<Story | null>(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
@@ -515,3 +515,4 @@ export default function StoryEditor() {
     </div>
   );
 }
+

@@ -200,7 +200,7 @@ export default function CharactersPage() {
                     {/* Actions */}
                     <div className="flex gap-2 mt-auto">
                       <Link
-                        href={`/dashboard/characters/${character.id}`}
+                        href={`/dashboard/characters/detail?id=${character.id}`}
                         className="flex-1 text-center bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 font-medium py-2 rounded-lg transition text-sm"
                       >
                         ✏️ Edit
@@ -239,3 +239,4 @@ export default function CharactersPage() {
     </div>
   );
 }
+

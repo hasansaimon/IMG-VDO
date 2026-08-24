@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 
@@ -19,9 +19,9 @@ interface Character {
 }
 
 export default function CharacterDetailPage() {
-  const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const characterId = params.id as string;
+  const characterId = searchParams.get("id") || "";
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [character, setCharacter] = useState<Character | null>(null);
@@ -443,3 +443,4 @@ export default function CharacterDetailPage() {
     </div>
   );
 }
+

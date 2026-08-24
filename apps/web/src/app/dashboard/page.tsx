@@ -182,7 +182,7 @@ export default function Dashboard() {
                 {dashboardData.recentStories.map((story) => (
                   <Link
                     key={story.id}
-                    href={`/dashboard/stories/${story.id}`}
+                    href={`/dashboard/stories/editor?id=${story.id}`}
                     className="block p-3 bg-purple-600/20 hover:bg-purple-600/40 rounded border border-purple-500/20 text-white transition"
                   >
                     <p className="font-semibold">{story.title}</p>
@@ -198,3 +198,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+

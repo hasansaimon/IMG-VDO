@@ -118,7 +118,7 @@ export default function NewCharacterPage() {
         },
       );
 
-      router.push(`/dashboard/characters/${response.data.id}`);
+      router.push(`/dashboard/characters/detail?id=${response.data.id}`);
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to create character");
     } finally {
@@ -325,3 +325,4 @@ export default function NewCharacterPage() {
     </div>
   );
 }
+
