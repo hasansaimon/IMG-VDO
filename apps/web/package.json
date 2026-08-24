@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start",
     "cap:add": "cap add android",
-    "cap:sync": "next build && cap sync",
-    "android:apk": "cd android && ./gradlew assembleRelease",
+    "cap:sync": "node scripts/cap-sync.mjs",
+    "android:apk": "npm run cap:sync && cd android && ./gradlew assembleRelease",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",
     "type-check": "tsc --noEmit",
@@ -48,4 +48,5 @@
     "vitest": "^1.1.0"
   }
 }
+
 
