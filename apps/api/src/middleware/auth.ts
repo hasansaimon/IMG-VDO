@@ -8,15 +8,28 @@ export interface AuthRequest extends Request {
   user?: { id: string; role: string; status: string };
 }
 
-const ALGORITHM = "HS256" as const;
+type Algorithm = "HS256" | "RS256";
 
-export function signToken(
-  userId: string,
-  options?: SignOptions,
-): string {
+function signingAlgorithm(): Algorithm {
+  return config.jwtPrivateKey && config.jwtPublicKey ? "RS256" : "HS256";
+}
+
+export function signToken(userId: string, options?: SignOptions): string {
+  const alg = signingAlgorithm();
+  const expiresIn = (options?.expiresIn ?? config.jwtExpire) as SignOptions["expiresIn"];
+
+  if (alg === "RS256") {
+    if (!config.jwtPrivateKey) throw new Error("JWT private key is not configured");
+    return jwt.sign({ userId }, config.jwtPrivateKey, {
+      expiresIn,
+      algorithm: "RS256",
+    });
+  }
+
+  if (!config.jwtSecret) throw new Error("JWT secret is not configured");
   return jwt.sign({ userId }, config.jwtSecret, {
-    expiresIn: (options?.expiresIn ?? config.jwtExpire) as SignOptions["expiresIn"],
-    algorithm: ALGORITHM,
+    expiresIn,
+    algorithm: "HS256",
   });
 }
 
@@ -36,9 +49,13 @@ export const authMiddleware = async (
       return res.status(401).json({ error: "Invalid token format" });
     }
 
-    const decoded = jwt.verify(token, config.jwtSecret, {
-      algorithms: [ALGORITHM],
-    }) as { userId: string };
+    // Choose verification key/alg based on configured keys
+    let decoded: { userId: string };
+    if (config.jwtPublicKey && config.jwtPrivateKey) {
+      decoded = jwt.verify(token, config.jwtPublicKey, { algorithms: ["RS256"] }) as { userId: string };
+    } else {
+      decoded = jwt.verify(token, config.jwtSecret as string, { algorithms: ["HS256"] }) as { userId: string };
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -67,4 +84,3 @@ export const requireRole = (...roles: string[]) =>
     }
     next();
   };
-
