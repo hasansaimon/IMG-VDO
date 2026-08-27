@@ -6,7 +6,9 @@ dotenv.config();
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().default(3001),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 chars"),
+  JWT_SECRET: z.string().min(32).optional(),
+  JWT_PRIVATE_KEY: z.string().optional(),
+  JWT_PUBLIC_KEY: z.string().optional(),
   JWT_EXPIRE: z.string().default("7d"),
   CORS_ORIGIN: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
@@ -38,10 +40,20 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+// Ensure we have either a strong symmetric secret or a matching RSA keypair
+if (!parsed.data.JWT_SECRET && !(parsed.data.JWT_PRIVATE_KEY && parsed.data.JWT_PUBLIC_KEY)) {
+  console.error(
+    "Invalid environment configuration: you must provide either JWT_SECRET (>=32 chars) or both JWT_PRIVATE_KEY and JWT_PUBLIC_KEY",
+  );
+  process.exit(1);
+}
+
 export const config = {
   port: parsed.data.API_PORT,
   nodeEnv: parsed.data.NODE_ENV,
   jwtSecret: parsed.data.JWT_SECRET,
+  jwtPrivateKey: parsed.data.JWT_PRIVATE_KEY,
+  jwtPublicKey: parsed.data.JWT_PUBLIC_KEY,
   jwtExpire: parsed.data.JWT_EXPIRE,
   cors: {
     origin: parsed.data.CORS_ORIGIN,
@@ -77,4 +89,3 @@ export const config = {
   },
   isProduction: parsed.data.NODE_ENV === "production",
 };
-
