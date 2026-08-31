@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { PrismaClient } from "@prisma/client";
-import Queue from "bull";
+import { Queue } from "bullmq";
 import { z } from "zod";
 
 const router = Router();
@@ -9,18 +9,20 @@ const prisma = new PrismaClient();
 
 // ─── Bull Queue for Video Generation ──────────────────────────────────────────
 
-const videoQueue = new Queue(
-  "video-generation",
-  process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 5000 },
-      removeOnComplete: 100,
-      removeOnFail: 50,
-    },
+const redisUrl = new URL(process.env.REDIS_URL || "redis://localhost:6379");
+const videoQueue = new Queue("video-generation", {
+  connection: {
+    host: redisUrl.hostname,
+    port: Number(redisUrl.port) || 6379,
+    ...(redisUrl.password ? { password: decodeURIComponent(redisUrl.password) } : {}),
   },
-);
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 100,
+    removeOnFail: 50,
+  },
+});
 
 // ─── Validation Schema ────────────────────────────────────────────────────────
 
@@ -77,6 +79,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
     // Add to Bull queue for async processing
     await videoQueue.add(
+      "video-generation",
       {
         jobId: job.id,
         sceneId: data.sceneId,

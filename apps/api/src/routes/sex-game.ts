@@ -90,7 +90,7 @@ router.post("/start", async (req: AuthRequest, res: Response) => {
     }
 
     // Create session
-    const session = createSession(userId, {
+    const session = await createSession(userId, {
       characterName,
       characterImageUrl: characterImageUrl || undefined,
       relationshipType: data.relationshipType || "partner",
@@ -143,7 +143,7 @@ router.post("/act", async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const data = actSchema.parse(req.body);
 
-    const session = getSession(data.sessionId);
+    const session = await getSession(data.sessionId);
     if (!session) {
       return res.status(404).json({
         error: "Session not found or expired. Please start a new game.",
@@ -200,7 +200,7 @@ router.get("/status/:sessionId", async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const { sessionId } = req.params;
 
-    const session = getSession(sessionId);
+    const session = await getSession(sessionId);
     if (!session) {
       return res.status(404).json({
         error: "Session not found or expired. Please start a new game.",

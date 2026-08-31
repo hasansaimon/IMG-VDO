@@ -13,6 +13,14 @@ import {
 const router = Router();
 const prisma = new PrismaClient();
 
+type StoryAsset = {
+  id: string;
+  url: string;
+  label: string | null;
+  description: string | null;
+  assetType: string;
+};
+
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
 const buildStorySchema = z.object({
@@ -54,7 +62,7 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
     const data = buildStorySchema.parse(req.body);
 
     // 1. Fetch all media assets and verify ownership
-    const assets = await prisma.mediaAsset.findMany({
+    const assets: StoryAsset[] = await prisma.mediaAsset.findMany({
       where: {
         id: { in: data.assetIds },
         userId,
@@ -293,7 +301,7 @@ router.post(
       const data = buildStorySchema.parse(req.body);
 
       // Fetch assets
-      const assets = await prisma.mediaAsset.findMany({
+      const assets: StoryAsset[] = await prisma.mediaAsset.findMany({
         where: {
           id: { in: data.assetIds },
           userId,

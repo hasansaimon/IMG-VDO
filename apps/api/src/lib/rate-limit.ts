@@ -48,8 +48,9 @@ function makeLimiter(opts: {
   });
 }
 
-// Pre-built limiters that use the Redis store if available
-const store = await getStore();
+// CommonJS output cannot use top-level await; use the in-memory store until
+// Redis initialization is moved behind application startup.
+const store: RedisStore | null = null;
 
 export const globalLimiter: RateLimitRequestHandler = makeLimiter({
   windowMs: config.rateLimit.windowMs,

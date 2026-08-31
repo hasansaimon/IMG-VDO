@@ -1,17 +1,7 @@
 import { URL } from "node:url";
 import dns from "node:dns/promises";
-import net from "node:net";
+import { isIP } from "node:net";
 import { logger } from "./logger";
-
-const PRIVATE_IP_RANGES = [
-  net.parse("10.0.0.0", "8") as { network: string },
-  net.parse("172.16.0.0", "12") as { network: string },
-  net.parse("192.168.0.0", "16") as { network: string },
-  net.parse("127.0.0.0", "8") as { network: string },
-  net.parse("169.254.0.0", "16") as { network: string },
-  net.parse("::1", "128") as { network: string },
-  net.parse("fc00::", "7") as { network: string },
-];
 
 function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split(".").map(Number);
@@ -47,17 +37,17 @@ export async function isSafeUrl(input: string): Promise<boolean> {
   if (url.username || url.password) return false;
   if (url.hostname === "localhost" || url.hostname === "0.0.0.0") return false;
 
-  let ips: string[];
+  let ips: Array<{ address: string }>;
   try {
-    ips = await dns.lookup(url.hostname, { all: true });
+    ips = (await dns.lookup(url.hostname, { all: true })) as Array<{ address: string }>;
   } catch {
     return false;
   }
   if (ips.length === 0) return false;
 
   for (const { address } of ips) {
-    if (net.isIP(address) === 4 && isPrivateIPv4(address)) return false;
-    if (net.isIP(address) === 6 && isPrivateIPv6(address)) return false;
+    if (isIP(address) === 4 && isPrivateIPv4(address)) return false;
+    if (isIP(address) === 6 && isPrivateIPv6(address)) return false;
   }
 
   return true;

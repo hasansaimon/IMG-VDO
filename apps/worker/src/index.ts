@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import Queue from "bull";
+import { Queue, Worker } from "bullmq";
+import IORedis from "ioredis";
 import { PrismaClient } from "@prisma/client";
 import pino from "pino";
 import { generateVideo } from "@storybook/video-generator";
@@ -15,22 +16,23 @@ const prisma = new PrismaClient();
 
 // ─── Video Generation Queue ───────────────────────────────────────────────────
 
-const videoQueue = new Queue<GenerationJobData>(
-  "video-generation",
+const redisConnection = new IORedis(
   process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 5000 },
-      removeOnComplete: 100,
-      removeOnFail: 50,
-    },
-  },
+  { maxRetriesPerRequest: null },
 );
+const videoQueue = new Queue<GenerationJobData>("video-generation", {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 100,
+    removeOnFail: 50,
+  },
+});
 
 // ─── Queue Processor ──────────────────────────────────────────────────────────
 
-videoQueue.process(async (job) => {
+const videoWorker = new Worker<GenerationJobData>("video-generation", async (job) => {
   const data = job.data;
   logger.info(
     { jobId: job.id, sceneId: data.sceneId, provider: data.provider },
@@ -98,19 +100,19 @@ videoQueue.process(async (job) => {
     logger.error({ jobId: job.id, error: message }, "Video generation failed");
     throw error;
   }
-});
+}, { connection: redisConnection });
 
 // ─── Queue Event Handlers ─────────────────────────────────────────────────────
 
-videoQueue.on("completed", (job) => {
+videoWorker.on("completed", (job) => {
   logger.info({ jobId: job.id }, "Job completed");
 });
 
-videoQueue.on("failed", (job, err) => {
-  logger.error({ jobId: job.id, error: err.message }, "Job failed");
+videoWorker.on("failed", (job, err) => {
+  logger.error({ jobId: job?.id, error: err.message }, "Job failed");
 });
 
-videoQueue.on("stalled", (jobId) => {
+videoWorker.on("stalled", (jobId) => {
   logger.warn({ jobId }, "Job stalled");
 });
 
@@ -118,7 +120,9 @@ videoQueue.on("stalled", (jobId) => {
 
 async function shutdown() {
   logger.info("Shutting down worker...");
+  await videoWorker.close();
   await videoQueue.close();
+  await redisConnection.quit();
   await prisma.$disconnect();
   process.exit(0);
 }

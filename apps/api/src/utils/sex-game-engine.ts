@@ -420,7 +420,7 @@ Write the next scene (2-4 paragraphs) describing what happens in ultra-realistic
 
 // ─── Core Game Functions ────────────────────────────────────────────────────
 
-export function createSession(
+export async function createSession(
   userId: string,
   options: {
     characterName?: string;
