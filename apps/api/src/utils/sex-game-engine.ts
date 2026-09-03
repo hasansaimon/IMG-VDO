@@ -29,6 +29,7 @@ export interface SexGameScene {
 export interface SexGameSession {
   id: string;
   userId: string;
+  version: number;
   characterName: string;
   characterImageUrl?: string;
   relationshipType: string;
@@ -88,22 +89,48 @@ const SESSION_TTL_SECONDS = 2 * 60 * 60;
 let redis: RedisClientType | null = null;
 let connecting: Promise<RedisClientType> | null = null;
 
+async function connectRedis(): Promise<RedisClientType> {
+  const url = process.env.REDIS_URL ?? "redis://localhost:6379";
+
+  const client = createClient({ url });
+
+  client.on("error", (err) => {
+    console.error("[sexgame] redis error", err);
+  });
+
+  await client.connect();
+
+  redis = client as RedisClientType;
+
+  return redis;
+}
+
 async function getRedis(): Promise<RedisClientType | null> {
-  if (redis) return redis;
-  if (connecting) return connecting;
+  if (redis?.isOpen) {
+    return redis;
+  }
+
+  if (connecting) {
+    try {
+      return await connecting;
+    } catch {
+      connecting = null;
+      return null;
+    }
+  }
+
+  connecting = connectRedis();
+
   try {
-    const url = process.env.REDIS_URL ?? "redis://localhost:6379";
-    connecting = (async () => {
-      const client = createClient({ url });
-      client.on("error", (err) => console.error("[sexgame] redis error", err));
-      await client.connect();
-      redis = client as RedisClientType;
-      return redis;
-    })();
     return await connecting;
   } catch (err) {
-    console.warn("[sexgame] redis unavailable, falling back to memory", err);
+    console.warn(
+      "[sexgame] redis unavailable, falling back to memory",
+      err,
+    );
     return null;
+  } finally {
+    connecting = null;
   }
 }
 
@@ -120,12 +147,27 @@ setInterval(() => {
   }
 }, CLEANUP_INTERVAL).unref?.();
 
+function deserializeSession(raw: string): SexGameSession {
+  const parsed = JSON.parse(raw) as SexGameSession & {
+    createdAt: string | Date;
+    lastActivity: string | Date;
+  };
+
+  return {
+    ...parsed,
+    createdAt: new Date(parsed.createdAt),
+    lastActivity: new Date(parsed.lastActivity),
+  };
+}
+
 async function sessionGet(id: string): Promise<SexGameSession | null> {
   const r = await getRedis();
+
   if (r) {
     const raw = await r.get(SESSION_PREFIX + id);
-    return raw ? (JSON.parse(raw) as SexGameSession) : null;
+    return raw ? deserializeSession(raw) : null;
   }
+
   return memorySessions.get(id) ?? null;
 }
 
@@ -436,6 +478,7 @@ export async function createSession(
   const session: SexGameSession = {
     id,
     userId,
+    version: 1,
     characterName: options.characterName || "Your Partner",
     characterImageUrl: options.characterImageUrl,
     relationshipType: options.relationshipType || "partner",
@@ -478,9 +521,18 @@ export async function processAction(
     session.stamina,
   );
   const choice = choices.find((c) => c.id === choiceIndex);
-  if (!choice) {
-    return { error: "Invalid choice" };
-  }
+
+if (!choice) {
+  return { error: "Invalid choice" };
+}
+
+if (session.stamina < choice.staminaCost) {
+  return {
+    error: "Not enough stamina for this action",
+  };
+}
+
+const actionPhase = session.phase;
 
   // Update session state
   session.round++;
@@ -493,6 +545,7 @@ export async function processAction(
     Math.max(0, session.stamina - choice.staminaCost),
   );
   session.lastActivity = new Date();
+  session.version++;
 
   // Check for climax
   let climaxAchieved = false;
@@ -536,11 +589,11 @@ export async function processAction(
 
   // Record history
   session.history.push({
-    phase: session.phase,
-    round: session.round,
-    choice: choice.text,
-    description: description.substring(0, 500),
-  });
+  phase: actionPhase,
+  round: session.round,
+  choice: choice.text,
+  description: description.substring(0, 500),
+});
 
   // Persist updated state
   await sessionSet(session);
@@ -637,7 +690,7 @@ Write 2-3 paragraphs of ultra-realistic, immersive description. This is the begi
     choice: "Session started",
     description: description.substring(0, 500),
   });
-
+await sessionSet(session);
   const choices = generateChoicesForPhase(
     "FOREPLAY",
     session.arousal,
