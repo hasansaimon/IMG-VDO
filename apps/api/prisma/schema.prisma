@@ -87,6 +87,7 @@ model Character {
   lorebookEntries  RoleplayLorebookEntry[]
   relationshipsAsA RoleplayRelationship[]  @relation("RelationshipCharacterA")
   relationshipsAsB RoleplayRelationship[]  @relation("RelationshipCharacterB")
+  visualProfile    CharacterVisualProfile?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -637,4 +638,23 @@ model RoleplaySceneState {
   conversation RoleplayConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([userId, updatedAt])
+}
+
+model CharacterVisualProfile {
+  id          String @id @default(cuid())
+  characterId String @unique
+
+  identityPrompt    String
+  negativePrompt    String?
+  style             String?
+  seed              Int?
+  referenceAssetIds String[]
+  locked            Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([locked])
 }

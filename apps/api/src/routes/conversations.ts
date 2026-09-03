@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../middleware/auth";
@@ -205,7 +206,7 @@ router.post("/:conversationId/messages", async (req: AuthRequest, res: Response)
       role: parsed.data.role,
       content: parsed.data.content,
       participantId: parsed.data.participantId,
-      metadata: parsed.data.metadata,
+      metadata: parsed.data.metadata as Prisma.InputJsonValue | undefined,
     },
   });
   return res.status(201).json(message);

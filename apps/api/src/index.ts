@@ -33,6 +33,7 @@ import memoriesRoutes from "./routes/memories";
 import lorebookRoutes from "./routes/lorebook";
 import relationshipsRoutes from "./routes/relationships";
 import sceneStateRoutes from "./routes/scene-state";
+import visualProfileRoutes from "./routes/visual-profiles";
 import conversationsRoutes from "./routes/conversations";
 
 const app = express();
@@ -114,6 +115,7 @@ app.use("/api/roleplay/memories", authMiddleware, memoriesRoutes);
 app.use("/api/roleplay/lorebook", authMiddleware, lorebookRoutes);
 app.use("/api/roleplay/relationships", authMiddleware, relationshipsRoutes);
 app.use("/api/roleplay/scene-state", authMiddleware, sceneStateRoutes);
+app.use("/api/characters", authMiddleware, visualProfileRoutes);
 app.use("/api/unrestricted", authMiddleware, unrestrictedRoutes);
 app.use("/api/content", authMiddleware, nsfwRoutes);
 app.use("/api/user/keys", authMiddleware, userKeysRoutes);
