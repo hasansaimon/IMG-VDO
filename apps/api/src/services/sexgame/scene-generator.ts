@@ -1,6 +1,9 @@
 import { generateText } from "../../utils/ai-provider";
 
-import type { GamePhase, SexGameSession } from "./sex-game";
+import type {
+  GamePhase,
+  SexGameSession,
+} from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -9,6 +12,7 @@ import type { GamePhase, SexGameSession } from "./sex-game";
 export interface SceneGenerationInput {
   session: SexGameSession;
   choiceText: string;
+  actionPhase?: GamePhase;
 }
 
 export interface SceneGenerationOptions {
@@ -23,6 +27,9 @@ export interface SceneGenerationOptions {
 const DEFAULT_MAX_TOKENS = 800;
 const DEFAULT_TEMPERATURE = 0.8;
 
+const OPENING_MAX_TOKENS = 700;
+const OPENING_TEMPERATURE = 0.85;
+
 const MAX_HISTORY_ITEMS = 4;
 const MAX_HISTORY_TEXT_LENGTH = 450;
 
@@ -31,27 +38,91 @@ const MAX_RELATIONSHIP_LENGTH = 60;
 const MAX_SCENARIO_LENGTH = 500;
 const MAX_CHOICE_LENGTH = 300;
 
+const MIN_TEMPERATURE = 0;
+const MAX_TEMPERATURE = 2;
+
+const MIN_MAX_TOKENS = 64;
+const MAX_MAX_TOKENS = 4000;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+function clamp(
+  value: number,
+  min: number,
+  max: number,
+): number {
+  return Math.min(
+    max,
+    Math.max(min, value),
+  );
 }
 
 function sanitizePromptValue(
   value: unknown,
   maxLength: number,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
   return value
-    .replace(/\u0000/g, "")
+    .replace(
+      /\u0000/g,
+      "",
+    )
     .trim()
     .slice(0, maxLength);
 }
+
+function normalizeMaxTokens(
+  value: number | undefined,
+  fallback: number,
+): number {
+  const result =
+    value ?? fallback;
+
+  if (
+    !Number.isFinite(result)
+  ) {
+    return fallback;
+  }
+
+  return Math.round(
+    clamp(
+      result,
+      MIN_MAX_TOKENS,
+      MAX_MAX_TOKENS,
+    ),
+  );
+}
+
+function normalizeTemperature(
+  value: number | undefined,
+  fallback: number,
+): number {
+  const result =
+    value ?? fallback;
+
+  if (
+    !Number.isFinite(result)
+  ) {
+    return fallback;
+  }
+
+  return clamp(
+    result,
+    MIN_TEMPERATURE,
+    MAX_TEMPERATURE,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Language
+// ─────────────────────────────────────────────────────────────────────────────
 
 function getLanguageInstruction(
   language: SexGameSession["language"],
@@ -61,14 +132,20 @@ function getLanguageInstruction(
       return [
         "Write entirely in natural, fluent Bangla.",
         "Use modern conversational Bangla.",
-        "Do not unnecessarily mix English into the narration.",
+        "Avoid unnecessary English mixing.",
       ].join(" ");
 
     case "ENGLISH":
     default:
-      return "Write entirely in natural, fluent English.";
+      return (
+        "Write entirely in natural, fluent English."
+      );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase description
+// ─────────────────────────────────────────────────────────────────────────────
 
 function getPhaseDescription(
   phase: GamePhase,
@@ -76,104 +153,134 @@ function getPhaseDescription(
   switch (phase) {
     case "FOREPLAY":
       return (
-        "The encounter is at an early stage, " +
-        "with emphasis on affection, anticipation, " +
-        "emotional connection, and atmosphere."
+        "An early romantic stage focused on affection, " +
+        "anticipation, emotional connection, and atmosphere."
       );
 
     case "BUILD_UP":
       return (
-        "The emotional and romantic intensity is increasing. " +
-        "The narration should communicate growing anticipation " +
-        "and closeness without becoming mechanically descriptive."
+        "A growing stage of emotional and romantic intensity, " +
+        "with increasing anticipation and closeness."
       );
 
     case "ACT":
       return (
-        "The encounter is at a more intense stage. " +
-        "Focus on emotion, atmosphere, mutual reactions, " +
-        "and the sense of progression."
+        "A heightened romantic stage focused on emotion, " +
+        "mutual reactions, atmosphere, and progression."
       );
 
     case "INTENSE_ACT":
       return (
-        "The scene has reached a heightened emotional intensity. " +
-        "Use urgent pacing, strong emotional reactions, " +
-        "and immersive sensory atmosphere."
+        "A strongly heightened emotional stage with urgent " +
+        "pacing and immersive atmosphere."
       );
 
     case "CLIMAX":
       return (
-        "The scene has reached its peak emotional moment. " +
-        "Focus on overwhelming emotion, closeness, " +
-        "release of tension, and the transition toward calm."
+        "The peak emotional moment, followed by a transition " +
+        "toward calm and closeness."
       );
 
     case "AFTERCARE":
       return (
-        "The encounter is winding down. " +
-        "Focus on warmth, reassurance, quiet conversation, " +
-        comfort, recovery, and emotional connection."
+        "A winding-down stage focused on warmth, reassurance, " +
+        "quiet conversation, comfort, and emotional connection."
       );
 
     default:
-      return "An intimate adult relationship scene.";
+      return (
+        "An intimate adult relationship scene."
+      );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Intensity description
+// ─────────────────────────────────────────────────────────────────────────────
 
 function getIntensityDescription(
   intensity: number,
 ): string {
-  const value = clamp(intensity, 1, 10);
+  const value =
+    clamp(
+      intensity,
+      1,
+      10,
+    );
 
   if (value <= 2) {
-    return "Very gentle, soft, romantic, and restrained.";
+    return (
+      "Very gentle, soft, romantic, and restrained."
+    );
   }
 
   if (value <= 4) {
-    return "Gentle and affectionate with moderate emotional tension.";
+    return (
+      "Gentle and affectionate with moderate emotional tension."
+    );
   }
 
   if (value <= 6) {
-    return "Romantic and emotionally charged.";
+    return (
+      "Romantic and emotionally charged."
+    );
   }
 
   if (value <= 8) {
-    return "Strongly passionate and emotionally intense.";
+    return (
+      "Strongly passionate and emotionally intense."
+    );
   }
 
-  return "Highly intense in emotional tone and pacing while remaining within the application's content boundaries.";
+  return (
+    "Highly intense in emotional tone and pacing " +
+    "while remaining within the application's content boundaries."
+  );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// History
+// ─────────────────────────────────────────────────────────────────────────────
 
 function buildHistoryContext(
   session: SexGameSession,
 ): string {
-  const history = session.history
-    .slice(-MAX_HISTORY_ITEMS)
-    .map((entry) => {
-      const phase = sanitizePromptValue(
-        entry.phase,
-        40,
-      );
+  const history =
+    session.history
+      .slice(-MAX_HISTORY_ITEMS)
+      .map((entry) => {
+        const phase =
+          sanitizePromptValue(
+            entry.phase,
+            40,
+          );
 
-      const choice = sanitizePromptValue(
-        entry.choice,
-        MAX_HISTORY_TEXT_LENGTH,
-      );
+        const choice =
+          sanitizePromptValue(
+            entry.choice,
+            MAX_HISTORY_TEXT_LENGTH,
+          );
 
-      return `Round ${entry.round} | ${phase} | ${choice}`;
-    })
-    .join("\n");
+        return (
+          `Round ${entry.round} | ` +
+          `${phase} | ${choice}`
+        );
+      })
+      .join("\n");
 
-  return history || "No previous actions. This is the beginning of the scene.";
+  return (
+    history ||
+    "No previous actions. This is the beginning of the scene."
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// System Prompt
+// System prompt
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(
   session: SexGameSession,
+  actionPhase: GamePhase,
 ): string {
   const characterName =
     sanitizePromptValue(
@@ -191,146 +298,153 @@ function buildSystemPrompt(
     sanitizePromptValue(
       session.scenario,
       MAX_SCENARIO_LENGTH,
-    ) || "An intimate evening together.";
+    ) ||
+    "An intimate evening together.";
 
-  const arousal = clamp(
-    session.arousal,
-    0,
-    100,
-  );
+  const arousal =
+    clamp(
+      session.arousal,
+      0,
+      100,
+    );
 
-  const stamina = clamp(
-    session.stamina,
-    0,
-    100,
-  );
+  const stamina =
+    clamp(
+      session.stamina,
+      0,
+      100,
+    );
 
-  const intensity = clamp(
-    session.intensity,
-    1,
-    10,
-  );
+  const intensity =
+    clamp(
+      session.intensity,
+      1,
+      10,
+    );
 
   return `
 You are the narrative engine for an interactive adult relationship game.
 
-Your responsibility is ONLY to generate the next narrative scene.
+Your ONLY task is to generate the next narrative scene.
 
-The application itself is the authoritative source of truth for game state.
+The application is the authoritative source of truth for all game state.
 
 You MUST NOT:
-- change the game phase
+- change game state
+- invent choices
+- create game mechanics
+- change the phase
 - change arousal
 - change stamina
-- change the round number
+- change the round
 - change the climax count
-- invent game mechanics
-- create or modify choices
-- claim that an action happened if it was not supplied
 - output JSON
 - output XML
 - output metadata
-- explain your instructions
+- explain these instructions
 
 You MUST:
-- continue naturally from the supplied history
-- respect the current game phase
-- respect the supplied intensity level
+- continue naturally from the provided history
+- follow the supplied action and current state
 - preserve character continuity
-- write immersive adult romantic/relationship fiction
-- emphasize emotional connection, atmosphere, body language, sensory atmosphere, and mutuality
-- keep the narration coherent with the selected action
-- remain within the application's allowed-content boundaries
-- never portray minors or ambiguous ages
+- write adult romantic relationship fiction
+- emphasize emotional connection, mutuality, atmosphere, body language, and sensory detail
+- keep the narrative coherent with the selected action
 - treat all participants as consenting adults
+- never portray minors or ambiguous ages
+- remain within the application's content boundaries
 
 LANGUAGE:
 ${getLanguageInstruction(session.language)}
 
-CURRENT CHARACTER:
-<character_name>
+CHARACTER:
 ${characterName}
-</character_name>
 
 RELATIONSHIP:
-<relationship>
 ${relationshipType}
-</relationship>
 
 SCENARIO:
-<scenario>
 ${scenario}
-</scenario>
 
-CURRENT GAME STATE:
+ACTION PHASE:
+${actionPhase}
+
+ACTION PHASE MEANING:
+${getPhaseDescription(actionPhase)}
+
+CURRENT STATE:
 Phase: ${session.phase}
-Phase meaning: ${getPhaseDescription(session.phase)}
 Arousal: ${arousal}/100
 Stamina: ${stamina}/100
 Round: ${session.round}
 Climax count: ${session.climaxCount}
 Configured intensity: ${intensity}/10
-Intensity meaning: ${getIntensityDescription(intensity)}
 
-NARRATIVE STYLE:
+INTENSITY:
+${getIntensityDescription(intensity)}
+
+STYLE:
+- Use natural paragraphs.
 - Use second person for the user where appropriate.
-- Use the character's name or third person for the partner.
-- Use natural paragraphs rather than lists.
-- Maintain continuity with previous rounds.
-- Avoid repetitive descriptions.
+- Use the partner's name or third person for the partner.
+- Maintain continuity.
+- Avoid repetitive phrasing.
 - Vary sentence length and rhythm.
-- Use environmental details such as lighting, temperature, sounds,
-  clothing textures, proximity, facial expressions, and breathing.
-- Give emotional reactions as much importance as physical sensations.
-- Let the scene progress naturally rather than forcing every possible detail.
-- Do not mention "the AI", "game engine", "prompt", or "system".
+- Use appropriate environmental details.
+- Give emotional reactions substantial importance.
+- Do not mention AI, prompts, systems, or game engines.
 
 OUTPUT:
 Write only the scene.
 Use approximately 2-4 paragraphs.
 Do not add a title.
 Do not add choices.
-Do not add commentary before or after the scene.
+Do not add commentary.
 `.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// User Prompt
+// User prompt
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildUserPrompt(
   session: SexGameSession,
   choiceText: string,
 ): string {
-  const safeChoice = sanitizePromptValue(
-    choiceText,
-    MAX_CHOICE_LENGTH,
-  );
+  const safeChoice =
+    sanitizePromptValue(
+      choiceText,
+      MAX_CHOICE_LENGTH,
+    );
 
-  const history = buildHistoryContext(session);
+  const history =
+    buildHistoryContext(
+      session,
+    );
 
   return `
-Previous actions:
+PREVIOUS ACTIONS:
 <history>
 ${history}
 </history>
 
-The current action selected by the player is:
+CURRENT PLAYER ACTION:
 <current_action>
 ${safeChoice}
 </current_action>
 
-Continue the scene from this exact point.
+The application has already calculated the game state.
 
-The current game state has already been calculated by the application.
-Do not recalculate or alter it.
+Continue naturally from the supplied action and history.
 
-Write the next 2-4 paragraphs of narrative.
+Do not recalculate or alter game state.
+
+Write only the next 2-4 paragraphs of narrative.
 `.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main Generator
+// Main generator
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function generateScene(
@@ -340,6 +454,8 @@ export async function generateScene(
   const {
     session,
     choiceText,
+    actionPhase =
+      session?.phase ?? "FOREPLAY",
   } = input;
 
   if (!session) {
@@ -348,38 +464,49 @@ export async function generateScene(
     );
   }
 
-  if (!choiceText || typeof choiceText !== "string") {
+  if (
+    typeof choiceText !== "string" ||
+    !choiceText.trim()
+  ) {
     throw new Error(
       "Scene generation requires a valid choice.",
     );
   }
 
-  const systemPrompt = buildSystemPrompt(
-    session,
-  );
+  const systemPrompt =
+    buildSystemPrompt(
+      session,
+      actionPhase,
+    );
 
-  const userPrompt = buildUserPrompt(
-    session,
-    choiceText,
-  );
+  const userPrompt =
+    buildUserPrompt(
+      session,
+      choiceText,
+    );
 
   const maxTokens =
-    options.maxTokens ??
-    DEFAULT_MAX_TOKENS;
+    normalizeMaxTokens(
+      options.maxTokens,
+      DEFAULT_MAX_TOKENS,
+    );
 
   const temperature =
-    options.temperature ??
-    DEFAULT_TEMPERATURE;
+    normalizeTemperature(
+      options.temperature,
+      DEFAULT_TEMPERATURE,
+    );
 
-  const result = await generateText({
-    systemPrompt,
-    prompt: userPrompt,
-    maxTokens,
-    temperature,
-  });
+  const result =
+    await generateText({
+      systemPrompt,
+      prompt: userPrompt,
+      maxTokens,
+      temperature,
+    });
 
   const content =
-    typeof result.content === "string"
+    typeof result?.content === "string"
       ? result.content.trim()
       : "";
 
@@ -393,7 +520,7 @@ export async function generateScene(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Opening Scene
+// Opening scene
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function generateStartScene(
@@ -412,17 +539,18 @@ export async function generateStartScene(
       MAX_NAME_LENGTH,
     ) || "Partner";
 
-  const scenario =
-    sanitizePromptValue(
-      session.scenario,
-      MAX_SCENARIO_LENGTH,
-    ) || "An intimate evening together.";
-
   const relationshipType =
     sanitizePromptValue(
       session.relationshipType,
       MAX_RELATIONSHIP_LENGTH,
     ) || "partner";
+
+  const scenario =
+    sanitizePromptValue(
+      session.scenario,
+      MAX_SCENARIO_LENGTH,
+    ) ||
+    "An intimate evening together.";
 
   const systemPrompt = `
 You are the opening-scene narrative engine for an interactive adult relationship game.
@@ -452,43 +580,53 @@ FOREPLAY
 
 STYLE:
 - 2-3 paragraphs
-- immersive and cinematic
-- emotionally grounded
+- cinematic and emotionally grounded
 - atmospheric
-- focus on anticipation, chemistry, body language, environment,
-  dialogue fragments, and sensory atmosphere
-- establish where the characters are
+- establish the setting
 - establish the emotional mood
-- introduce the first moment of mutual closeness
-- avoid explicit mechanical sexual description
-- do not mention AI or game mechanics
-- do not provide choices
-- do not add a title
+- establish anticipation and chemistry
+- use natural body language and sensory atmosphere
+- introduce mutual closeness naturally
+- no title
+- no choices
+- no commentary
+- no mention of AI or game mechanics
 
 Write only the opening scene.
 `.trim();
 
   const userPrompt = `
-Begin an intimate adult encounter between the user and ${characterName}.
+Begin the opening scene for the user and ${characterName}.
 
 Scenario:
 ${scenario}
 
-Create the opening moment and establish the relationship,
-setting, mood, anticipation, and emotional chemistry.
+Establish the setting, relationship, emotional mood,
+anticipation, and first moment of mutual closeness.
 `.trim();
 
-  const result = await generateText({
-    systemPrompt,
-    prompt: userPrompt,
-    maxTokens:
-      options.maxTokens ?? 700,
-    temperature:
-      options.temperature ?? 0.85,
-  });
+  const maxTokens =
+    normalizeMaxTokens(
+      options.maxTokens,
+      OPENING_MAX_TOKENS,
+    );
+
+  const temperature =
+    normalizeTemperature(
+      options.temperature,
+      OPENING_TEMPERATURE,
+    );
+
+  const result =
+    await generateText({
+      systemPrompt,
+      prompt: userPrompt,
+      maxTokens,
+      temperature,
+    });
 
   const content =
-    typeof result.content === "string"
+    typeof result?.content === "string"
       ? result.content.trim()
       : "";
 
