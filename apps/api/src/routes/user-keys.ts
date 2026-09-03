@@ -39,13 +39,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       where: { userId },
     });
 
-    const keys: Record<string, string | null> = {};
-    for (const provider of SUPPORTED_PROVIDERS) {
-      const found = userKeys.find(
-        (k: { provider: string }) => k.provider === provider,
-      );
-      keys[provider] = found ? found.key : null;
-    }
+   const keys: Record<string, string | null> = {};
+
+for (const provider of SUPPORTED_PROVIDERS) {
+  const found = userKeys.find(
+    (k: { provider: string }) => k.provider === provider,
+  );
+
+  // Never return the actual API key to the client.
+  // The frontend only needs to know whether a key is configured.
+  keys[provider] = found ? "configured" : null;
+}
 
     res.json({
       success: true,
