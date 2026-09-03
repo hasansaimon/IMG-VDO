@@ -22,7 +22,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./packages/shared/src/*"],
-      "@nsfw-filter/*": ["./packages/nsfw-filter/src/*"],
       "@video-generator/*": ["./packages/video-generator/src/*"]
     }
   },

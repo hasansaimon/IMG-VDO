@@ -7,6 +7,7 @@ import { createClient } from "redis";
 import { config } from "./config";
 import { errorHandler } from "./middleware/errorHandler";
 import { authMiddleware } from "./middleware/auth";
+import { globalRateLimiter } from "./middleware/rateLimit";
 import { logger } from "./lib/logger";
 import { prisma } from "./lib/prisma";
 
@@ -23,7 +24,6 @@ import publishingRoutes from "./routes/publishing";
 import roleplayRoutes from "./routes/roleplay";
 import offlineRoutes from "./routes/offline";
 import unrestrictedRoutes from "./routes/unrestricted";
-import nsfwRoutes from "./routes/nsfw";
 import userKeysRoutes from "./routes/user-keys";
 import mediaAssetsRoutes from "./routes/media-assets";
 import buildStoryRoutes from "./routes/build-story";
@@ -34,6 +34,7 @@ import lorebookRoutes from "./routes/lorebook";
 import relationshipsRoutes from "./routes/relationships";
 import sceneStateRoutes from "./routes/scene-state";
 import visualProfileRoutes from "./routes/visual-profiles";
+import videoCallRoutes from "./routes/video-calls";
 import conversationsRoutes from "./routes/conversations";
 
 const app = express();
@@ -50,13 +51,20 @@ app.use(
   }),
 );
 app.use(pinoHttp({ logger }));
+app.use(globalRateLimiter);
 app.use(express.json({ limit: config.bodyLimit }));
 app.use(express.urlencoded({ limit: config.bodyLimit, extended: true }));
 
 // Disable caching on auth responses
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
   res.setHeader("Referrer-Policy", "no-referrer");
+  if (config.isProduction) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   next();
 });
 
@@ -116,8 +124,8 @@ app.use("/api/roleplay/lorebook", authMiddleware, lorebookRoutes);
 app.use("/api/roleplay/relationships", authMiddleware, relationshipsRoutes);
 app.use("/api/roleplay/scene-state", authMiddleware, sceneStateRoutes);
 app.use("/api/characters", authMiddleware, visualProfileRoutes);
+app.use("/api/video-calls", authMiddleware, videoCallRoutes);
 app.use("/api/unrestricted", authMiddleware, unrestrictedRoutes);
-app.use("/api/content", authMiddleware, nsfwRoutes);
 app.use("/api/user/keys", authMiddleware, userKeysRoutes);
 app.use("/api/media-assets", authMiddleware, mediaAssetsRoutes);
 app.use("/api/sex-game", authMiddleware, sexGameRoutes);

@@ -1,20 +1,18 @@
 # Image-to-Video Visual Storybook
 
-A comprehensive platform for converting images into cinematic videos with built-in NSFW content detection and management.
+A comprehensive platform for converting images into cinematic videos with adult content support.
 
 ## Features
 
 ✨ **Core Features**
 - Image-to-video generation using AI (Runway ML, Pika Labs, CogVideoX)
-- Real-time NSFW content detection and filtering
+- Adult-content-enabled generation workflows
 - Visual storybook interface with timeline editor
 - Batch processing support
 - Video gallery and archive management
 - Progress tracking and webhooks
 
-🔒 **Security & Compliance**
-- NSFW detection using multiple models
-- Content filtering and moderation
+🔒 **Security**
 - User access controls
 - Audit logging
 
@@ -70,7 +68,6 @@ npm run dev
 │   └── worker/           # Job processing worker
 ├── packages/
 │   ├── shared/           # Shared types and utilities
-│   ├── nsfw-filter/      # NSFW detection module
 │   └── video-generator/  # Video generation integrations
 ├── docker-compose.yml
 ├── package.json
@@ -100,8 +97,6 @@ npm run dev
 - Runway ML API
 - Pika Labs API
 - CogVideoX (open-source)
-- TensorFlow.js (NSFW detection)
-- OpenAI Moderation API (backup)
 
 ## Configuration
 
@@ -124,11 +119,6 @@ AWS_S3_BUCKET=video-storage
 RUNWAY_API_KEY=your_key
 PIKA_API_KEY=your_key
 
-# NSFW Settings
-NSFW_DETECTION_ENABLED=true
-NSFW_THRESHOLD=0.5
-NSFW_MODEL=tensorflow
-
 # Application
 NEXT_PUBLIC_API_URL=http://localhost:3000
 JWT_SECRET=your_secret_key
@@ -148,20 +138,6 @@ Content-Type: application/json
   "duration": 5,
   "provider": "runway",
   "motionStrength": 0.7,
-  "skipNsfwCheck": false
-}
-```
-
-### NSFW Detection
-
-```bash
-POST /api/content/check-nsfw
-Content-Type: application/json
-
-{
-  "imageUrl": "https://example.com/image.jpg",
-  "videoUrl": "https://example.com/video.mp4",
-  "models": ["tensorflow", "openai"]
 }
 ```
 
@@ -173,26 +149,6 @@ POST /api/storyboards
 GET /api/storyboards/:id
 PUT /api/storyboards/:id
 DELETE /api/storyboards/:id
-```
-
-## NSFW Detection
-
-The platform uses multiple detection models:
-
-1. **TensorFlow.js NSFW Model** - Client-side detection
-2. **OpenAI Moderation API** - Server-side fallback
-3. **Custom ML Pipeline** - Custom training on flagged content
-
-### Configuration
-
-```typescript
-const nsfwConfig = {
-  enabled: true,
-  threshold: 0.5, // 0-1, higher = stricter
-  models: ['tensorflow', 'openai'],
-  action: 'flag', // 'flag' | 'block' | 'blur'
-  blurIntensity: 15,
-};
 ```
 
 ## Development

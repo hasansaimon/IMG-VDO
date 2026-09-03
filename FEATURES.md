@@ -71,7 +71,6 @@ Monorepo (Turborepo)
 │       └── Async content processing
 └── packages/
     ├── shared/          # Shared TypeScript types & enums
-    ├── nsfw-filter/     # Permissive NSFW checker (always ALLOW)
     └── video-generator/ # Video generation abstraction layer
 ```
 
@@ -136,12 +135,6 @@ Monorepo (Turborepo)
 | GET    | `/api/models/uncensored`          | List all uncensored AI models |
 | POST   | `/api/models/generate-uncensored` | Generate with selected model  |
 
-### Content Moderation (Always Permissive)
-
-| Method | Endpoint                  | Description                       |
-| ------ | ------------------------- | --------------------------------- |
-| POST   | `/api/content/nsfw/check` | NSFW check — always returns ALLOW |
-
 ### Offline Generation
 
 | Method | Endpoint                         | Description                    |
@@ -161,7 +154,6 @@ Monorepo (Turborepo)
 | **Scene**         | Video scene management     | Adult content prompts              |
 | **Storyboard**    | Project organization       | Full NSFW support                  |
 | **GenerationJob** | Video processing queue     | Bull queue with Redis              |
-| **NSFWCheck**     | Audit trail (always ALLOW) | Permissive by design               |
 | **AuditLog**      | User activity logging      | Full tracking                      |
 | **ApiKey**        | API authentication         | Key management                     |
 
@@ -210,7 +202,6 @@ HUGGINGFACE_API_KEY=hf_your_free_token
 
 # Mode (no restrictions):
 UNRESTRICTED_MODE=true
-NSFW_DETECTION_ENABLED=false
 ADULT_CONTENT_ALLOWED=true
 CONTENT_FILTERING=none
 ```
@@ -251,7 +242,6 @@ image-video-storybook/
 │   └── worker/src/          # Bull queue worker
 ├── packages/
 │   ├── shared/              # Types, enums, interfaces
-│   ├── nsfw-filter/         # Permissive NSFW detection
 │   └── video-generator/     # Video provider abstraction
 ├── docker-compose.yml       # PostgreSQL, Redis, MinIO
 └── turbo.json               # Turborepo pipeline
