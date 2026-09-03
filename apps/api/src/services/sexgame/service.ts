@@ -9,7 +9,7 @@ import {
   sessionCommit,
   sessionGet,
   sessionSet,
-} from "./session-store";
+} from "./session";
 
 import {
   generateChoicesForPhase,
@@ -26,7 +26,13 @@ import {
 import {
   validateChoiceId,
   validateSessionCreateOptions,
+  validateSessionId,
+  isSessionOwnedBy,
 } from "./validators";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Create session
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function createSession(
   userId: string,
@@ -37,9 +43,12 @@ export async function createSession(
     scenario?: string;
     language?: "ENGLISH" | "BANGLA";
     intensity?: number;
-  },
+  } = {},
 ): Promise<SexGameSession> {
-  if (!userId) {
+  if (
+    typeof userId !== "string" ||
+    !userId.trim()
+  ) {
     throw new Error("userId is required");
   }
 
@@ -50,20 +59,27 @@ export async function createSession(
 
   const session: SexGameSession = {
     id: `sexgame_${Date.now()}_${crypto.randomUUID()}`,
-    userId,
-    version: 1,
+
+    userId: userId.trim(),
+
+    version: 0,
 
     characterName:
-      validated.characterName || "Partner",
+      validated.characterName ||
+      "Partner",
 
     characterImageUrl:
-      options.characterImageUrl,
+      typeof options.characterImageUrl === "string"
+        ? options.characterImageUrl.trim().slice(0, 500)
+        : undefined,
 
     relationshipType:
-      validated.relationshipType || "partner",
+      validated.relationshipType ||
+      "partner",
 
     scenario:
-      validated.scenario || "An intimate encounter",
+      validated.scenario ||
+      "An intimate encounter",
 
     language:
       validated.language,
@@ -72,13 +88,19 @@ export async function createSession(
       validated.intensity,
 
     phase: "FOREPLAY",
+
     arousal: 5,
+
     stamina: 100,
+
     climaxCount: 0,
+
     round: 0,
+
     history: [],
 
     createdAt: now,
+
     lastActivity: now,
   };
 
@@ -87,35 +109,78 @@ export async function createSession(
   return session;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Get session
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function getGameSession(
   sessionId: string,
   userId: string,
 ): Promise<SexGameSession | null> {
-  const session = await sessionGet(sessionId);
+  if (
+    !validateSessionId(sessionId)
+  ) {
+    return null;
+  }
+
+  const session =
+    await sessionGet(sessionId);
 
   if (!session) {
     return null;
   }
 
-  if (session.userId !== userId) {
+  if (
+    !isSessionOwnedBy(
+      session,
+      userId,
+    )
+  ) {
     return null;
   }
 
   return session;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Process action
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function processGameAction(
   sessionId: string,
   userId: string,
   choiceId: number,
-): Promise<SexGameScene | { error: string }> {
-  if (!validateChoiceId(choiceId)) {
+): Promise<
+  SexGameScene | { error: string }
+> {
+  // Validate input
+  if (
+    !validateSessionId(sessionId)
+  ) {
+    return {
+      error: "Invalid session ID",
+    };
+  }
+
+  if (
+    typeof userId !== "string" ||
+    !userId.trim()
+  ) {
+    return {
+      error: "User ID is required",
+    };
+  }
+
+  if (
+    !validateChoiceId(choiceId)
+  ) {
     return {
       error: "Invalid choice ID",
     };
   }
 
-  const session = await sessionGet(sessionId);
+  const session =
+    await sessionGet(sessionId);
 
   if (!session) {
     return {
@@ -123,21 +188,32 @@ export async function processGameAction(
     };
   }
 
-  if (session.userId !== userId) {
+  if (
+    !isSessionOwnedBy(
+      session,
+      userId,
+    )
+  ) {
     return {
       error: "Unauthorized",
     };
   }
 
-  const choices = generateChoicesForPhase(
-    session.phase,
-    session.stamina,
-    session.intensity,
-  );
+  // ───────────────────────────────────────────────────────────────────────────
+  // Get currently available choices
+  // ───────────────────────────────────────────────────────────────────────────
 
-  const choice = choices.find(
-    (item) => item.id === choiceId,
-  );
+  const choices =
+    generateChoicesForPhase(
+      session.phase,
+      session.stamina,
+      session.intensity,
+    );
+
+  const choice =
+    choices.find(
+      (item) => item.id === choiceId,
+    );
 
   if (!choice) {
     return {
@@ -145,21 +221,43 @@ export async function processGameAction(
     };
   }
 
-  const transition = transitionSession(
-    session,
-    choice,
-  );
+  if (
+    choice.staminaCost >
+    session.stamina
+  ) {
+    return {
+      error: "Not enough stamina",
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Calculate next authoritative state
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const transition =
+    transitionSession(
+      session,
+      choice,
+    );
+
+  const nextSession =
+    transition.session;
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Generate narrative
+  // ───────────────────────────────────────────────────────────────────────────
 
   let description: string;
 
   try {
-    description = await generateScene({
-      session: transition.session,
-      choiceText: choice.text,
-    });
+    description =
+      await generateScene({
+        session: nextSession,
+        choiceText: choice.text,
+      });
   } catch (error) {
     console.error(
-      "[sexgame] scene generation failed",
+      "[sexgame] scene generation failed:",
       error,
     );
 
@@ -167,49 +265,99 @@ export async function processGameAction(
       "The scene continues naturally as the two of you remain focused on each other.";
   }
 
-  transition.session.history = [
-    ...transition.session.history,
+  if (
+    !description.trim()
+  ) {
+    description =
+      "The scene continues naturally as the two of you remain focused on each other.";
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Record history
+  // ───────────────────────────────────────────────────────────────────────────
+
+  nextSession.history = [
+    ...nextSession.history,
     {
-      phase: transition.actionPhase,
-      round: transition.session.round,
-      choice: choice.text,
-      description: description.slice(0, 500),
+      phase:
+        transition.actionPhase,
+
+      round:
+        nextSession.round,
+
+      choice:
+        choice.text,
+
+      description:
+        description
+          .trim()
+          .slice(0, 500),
     },
   ].slice(-50);
 
-  const commit = await sessionCommit(
-    transition.session,
-    session.version,
-  );
+  nextSession.lastActivity =
+    new Date();
 
-  if (commit === "conflict") {
+  // ───────────────────────────────────────────────────────────────────────────
+  // Atomic version-aware commit
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const commit =
+    await sessionCommit(
+      nextSession,
+      session.version,
+    );
+
+  if (
+    commit === "conflict"
+  ) {
     return {
       error:
         "This session was updated by another request. Please retry.",
     };
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Next choices
+  // ───────────────────────────────────────────────────────────────────────────
+
   const nextChoices =
     transition.sessionComplete
       ? []
       : generateChoicesForPhase(
-          transition.session.phase,
-          transition.session.stamina,
-          transition.session.intensity,
+          nextSession.phase,
+          nextSession.stamina,
+          nextSession.intensity,
         );
 
   return {
-    phase: transition.session.phase,
-    arousal: transition.session.arousal,
-    stamina: transition.session.stamina,
-    round: transition.session.round,
+    phase:
+      nextSession.phase,
+
+    arousal:
+      nextSession.arousal,
+
+    stamina:
+      nextSession.stamina,
+
+    round:
+      nextSession.round,
+
     description,
-    choices: nextChoices,
+
+    choices:
+      nextChoices,
+
     climaxAchieved:
       transition.climaxAchieved,
+
     climaxCount:
-      transition.session.climaxCount,
+      nextSession.climaxCount,
+
     sessionComplete:
       transition.sessionComplete,
+
+    version:
+      nextSession.version,
   };
 }
