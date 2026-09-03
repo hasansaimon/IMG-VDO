@@ -1,5 +1,5 @@
 {
-  "name": "@storybook/worker",
+  "name": "@img-vdo/worker",
   "version": "1.0.0",
   "description": "Background job worker for video generation and content processing",
   "main": "dist/index.js",
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@prisma/client": "^5.7.0",
-    "@storybook/shared": "*",
-    "@storybook/video-generator": "*",
+    "@img-vdo/shared": "*",
+    "@img-vdo/video-generator": "*",
     "bullmq": "^6.3.2",
     "dotenv": "^16.3.1",
     "ioredis": "^5.3.2",
