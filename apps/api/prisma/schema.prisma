@@ -403,3 +403,106 @@ enum MediaAssetType {
   IMAGE
   VIDEO
 }
+// -----------------------------------------------------------------------------
+// Roleplay conversation core
+// -----------------------------------------------------------------------------
+
+enum RoleplayConversationStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum RoleplayParticipantType {
+  USER
+  CHARACTER
+}
+
+enum RoleplayMessageRole {
+  USER
+  CHARACTER
+  SYSTEM
+}
+
+enum RoleplayMessageStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model RoleplayConversation {
+  id        String   @id @default(cuid())
+  userId    String
+
+  title     String
+  status    RoleplayConversationStatus @default(ACTIVE)
+  language  String                     @default("en")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants RoleplayParticipant[]
+  messages     RoleplayMessage[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model RoleplayParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+
+  type           RoleplayParticipantType
+
+  userId         String?
+  characterId    String?
+
+  displayName    String
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+
+  joinedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation RoleplayConversation @relation(
+    fields: [conversationId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  messages RoleplayMessage[]
+
+  @@index([conversationId])
+  @@index([characterId])
+  @@index([userId])
+}
+
+model RoleplayMessage {
+  id            String   @id @default(cuid())
+  conversationId String
+  participantId String?
+
+  role          RoleplayMessageRole
+  content       String
+  status        RoleplayMessageStatus @default(COMPLETED)
+
+  metadata      Json?
+
+  createdAt     DateTime @default(now())
+
+  conversation RoleplayConversation @relation(
+    fields: [conversationId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  participant RoleplayParticipant? @relation(
+    fields: [participantId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  @@index([conversationId, createdAt])
+  @@index([participantId])
+}
