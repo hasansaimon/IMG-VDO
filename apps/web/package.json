@@ -45,7 +45,7 @@
     "postcss": "^8.4.31",
     "prettier": "^3.0.0",
     "quill": "^2.0.2",
-    "react-quill": "^2.0.0",
+    "react-quill": "^3.0.0",
     "vitest": "^4.1.11"
   }
 }
