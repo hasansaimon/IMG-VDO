@@ -1,34 +1,30 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
-import {
-  createSession,
-  getSession,
-  processAction,
-  generateStartScene,
-} from "../utils/sex-game-engine";
+import { prisma } from "../lib/prisma";
+import { createSession, getSession } from "../services/sexgame/session-store";
+import { generateStartScene } from "../services/sexgame/scene-generator";
+import { processAction } from "../services/sexgame/sex-game";
 import { generateImage } from "../utils/ai-provider";
-
-const prisma = new PrismaClient();
 
 const router = Router();
 
 // ─── Validation Schemas ─────────────────────────────────────────────────────
 
 const startGameSchema = z.object({
-  characterName: z.string().min(1).max(100).default("Your Partner"),
+  characterName: z.string().trim().min(1).max(100).default("Your Partner"),
   characterId: z.string().optional(),
-  relationshipType: z.string().max(100).optional(),
-  scenario: z.string().max(500).optional(),
+  relationshipType: z.string().trim().max(100).optional(),
+  scenario: z.string().trim().max(500).optional(),
   language: z.enum(["ENGLISH", "BANGLA"]).optional().default("ENGLISH"),
-  intensity: z.number().min(1).max(10).optional().default(7),
+  intensity: z.number().int().min(1).max(10).optional().default(7),
   generateImage: z.boolean().optional().default(false),
 });
 
 const actSchema = z.object({
   sessionId: z.string().min(1),
-  choiceIndex: z.number().int().min(1).max(10),
+  choiceId: z.number().int().min(1).max(10),
+  version: z.number().int().nonnegative(),
   generateImage: z.boolean().optional().default(false),
 });
 
@@ -121,6 +117,7 @@ router.post("/start", async (req: AuthRequest, res: Response) => {
         scenario: session.scenario,
         language: session.language,
         intensity: session.intensity,
+        version: session.version,
         createdAt: session.createdAt,
       },
       game: scene,
@@ -155,11 +152,13 @@ router.post("/act", async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: "Not your session" });
     }
 
-    const result = await processAction(data.sessionId, data.choiceIndex);
+    const result = await processAction(data.sessionId, data.choiceId, data.version);
 
     if ("error" in result) {
       return res.status(400).json({ error: result.error });
     }
+
+    const updatedSession = await getSession(data.sessionId);
 
     // Optionally generate scene image
     if (data.generateImage && result.description) {
@@ -179,6 +178,8 @@ router.post("/act", async (req: AuthRequest, res: Response) => {
         relationshipType: session.relationshipType,
         scenario: session.scenario,
         language: session.language,
+        intensity: session.intensity,
+        version: updatedSession?.version ?? session.version,
       },
       game: result,
       timestamp: new Date(),
@@ -223,6 +224,7 @@ router.get("/status/:sessionId", async (req: AuthRequest, res: Response) => {
         relationshipType: session.relationshipType,
         scenario: session.scenario,
         language: session.language,
+        intensity: session.intensity,
         createdAt: session.createdAt,
       },
       game: {
@@ -237,6 +239,7 @@ router.get("/status/:sessionId", async (req: AuthRequest, res: Response) => {
         sessionComplete:
           session.phase === "AFTERCARE" &&
           session.round > session.history.length - 1,
+        version: session.version,
       },
       history: session.history,
       timestamp: new Date(),

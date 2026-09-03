@@ -26,6 +26,7 @@ interface GameState {
   climaxAchieved: boolean;
   climaxCount: number;
   sessionComplete: boolean;
+  version: number;
   imageUrl?: string;
 }
 
@@ -214,7 +215,7 @@ export default function SexGamePage() {
       const token = localStorage.getItem("token");
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/sex-game/act`,
-        { sessionId, choiceIndex: choiceId },
+        { sessionId, choiceId, version: game?.version },
         {
           headers: { Authorization: `Bearer ${token}` },
         },

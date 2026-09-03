@@ -1,4 +1,6 @@
-import { generateText } from "./ai-provider";
+import { generateText } from "../../utils/ai-provider";
+import { transitionState } from "./state-machine";
+import { sessionOptionsSchema } from "./validators";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,7 @@ export interface SexGameScene {
   climaxAchieved: boolean;
   climaxCount: number;
   sessionComplete: boolean;
+  version: number;
   imageUrl?: string; // Optional generated scene image
 }
 
@@ -48,6 +51,7 @@ export interface SexGameSession {
   }>;
   createdAt: Date;
   lastActivity: Date;
+  version: number;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -70,12 +74,8 @@ const PHASE_ORDER: GamePhase[] = [
   "AFTERCARE",
 ];
 
-function getPhaseForArousal(arousal: number): GamePhase {
-  if (arousal >= 90) return "CLIMAX";
-  if (arousal >= 70) return "INTENSE_ACT";
-  if (arousal >= 50) return "ACT";
-  if (arousal >= 25) return "BUILD_UP";
-  return "FOREPLAY";
+function promptValue(value: string): string {
+  return value.replace(/[\u0000-\u001F\u007F]/g, " ").trim();
 }
 
 // ─── Session Store (Redis-backed) ───────────────────────────────────────────
@@ -87,6 +87,7 @@ const SESSION_TTL_SECONDS = 2 * 60 * 60;
 
 let redis: RedisClientType | null = null;
 let connecting: Promise<RedisClientType> | null = null;
+const memoryLocks = new Map<string, Promise<void>>();
 
 async function getRedis(): Promise<RedisClientType | null> {
   if (redis) return redis;
@@ -102,7 +103,11 @@ async function getRedis(): Promise<RedisClientType | null> {
     })();
     return await connecting;
   } catch (err) {
-    console.warn("[sexgame] redis unavailable, falling back to memory", err);
+    connecting = null;
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Sex game session storage is unavailable");
+    }
+    console.warn("[sexgame] redis unavailable, using development memory store", err);
     return null;
   }
 }
@@ -123,20 +128,38 @@ setInterval(() => {
 async function sessionGet(id: string): Promise<SexGameSession | null> {
   const r = await getRedis();
   if (r) {
-    const raw = await r.get(SESSION_PREFIX + id);
-    return raw ? (JSON.parse(raw) as SexGameSession) : null;
+    try {
+      const raw = await r.get(SESSION_PREFIX + id);
+      return raw ? deserializeSession(raw) : null;
+    } catch (error) {
+      console.error("[sexgame] session read failed", error);
+      throw new Error("Sex game session could not be read");
+    }
   }
   return memorySessions.get(id) ?? null;
+}
+
+function deserializeSession(raw: string): SexGameSession {
+  const parsed = JSON.parse(raw) as SexGameSession;
+  return {
+    ...parsed,
+    createdAt: new Date(parsed.createdAt),
+    lastActivity: new Date(parsed.lastActivity),
+    version: parsed.version ?? 0,
+  };
 }
 
 async function sessionSet(session: SexGameSession): Promise<void> {
   const r = await getRedis();
   if (r) {
-    await r.set(
-      SESSION_PREFIX + session.id,
-      JSON.stringify(session),
-      { EX: SESSION_TTL_SECONDS },
-    );
+    try {
+      await r.set(SESSION_PREFIX + session.id, JSON.stringify(session), {
+        EX: SESSION_TTL_SECONDS,
+      });
+    } catch (error) {
+      console.error("[sexgame] session save failed", error);
+      throw new Error("Sex game session could not be saved");
+    }
   } else {
     memorySessions.set(session.id, session);
   }
@@ -144,13 +167,56 @@ async function sessionSet(session: SexGameSession): Promise<void> {
 
 async function sessionDelete(id: string): Promise<void> {
   const r = await getRedis();
-  if (r) await r.del(SESSION_PREFIX + id);
-  else memorySessions.delete(id);
+  if (r) {
+    try {
+      await r.del(SESSION_PREFIX + id);
+    } catch (error) {
+      console.error("[sexgame] session delete failed", error);
+      throw new Error("Sex game session could not be deleted");
+    }
+  } else memorySessions.delete(id);
+}
+
+async function withSessionLock<T>(id: string, action: () => Promise<T>): Promise<T> {
+  const previous = memoryLocks.get(id) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => (release = resolve));
+  const queued = previous.then(() => current);
+  memoryLocks.set(id, queued);
+  await previous;
+  let r: RedisClientType | null = null;
+  const lockToken = `${process.pid}:${Date.now()}:${Math.random()}`;
+  let redisLock = false;
+  try {
+    r = await getRedis();
+    if (r) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        redisLock =
+          (await r.set(`${SESSION_PREFIX}lock:${id}`, lockToken, {
+            NX: true,
+            PX: 120_000,
+          })) === "OK";
+        if (redisLock) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      if (!redisLock) throw new Error("Session is busy; retry the action");
+    }
+    return await action();
+  } finally {
+    if (r && redisLock) {
+      await r.eval(
+        "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+        { keys: [`${SESSION_PREFIX}lock:${id}`], arguments: [lockToken] },
+      );
+    }
+    release();
+    if (memoryLocks.get(id) === queued) memoryLocks.delete(id);
+  }
 }
 
 // ─── Choice Generation ──────────────────────────────────────────────────────
 
-function generateChoicesForPhase(
+function getChoicesForPhase(
   phase: GamePhase,
   arousal: number,
   stamina: number,
@@ -346,12 +412,29 @@ function generateChoicesForPhase(
   }
 }
 
+export function generateChoicesForPhase(
+  phase: GamePhase,
+  arousal: number,
+  stamina: number,
+  intensity: number,
+): SexGameChoice[] {
+  const choices = getChoicesForPhase(phase, arousal, stamina);
+  const allowedChoices = choices.filter((choice) => choice.intensity <= intensity);
+  return allowedChoices.length > 0
+    ? allowedChoices
+    : choices.slice().sort((a, b) => a.intensity - b.intensity).slice(0, 1);
+}
+
 // ─── AI Prompt Construction ─────────────────────────────────────────────────
 
 function buildSceneSystemPrompt(session: SexGameSession): string {
   const characterContext = session.characterName
-    ? `Your partner's name is ${session.characterName}. They are your ${session.relationshipType || "partner"}.`
+    ? `Your partner's name is ${promptValue(session.characterName)}. They are your ${promptValue(session.relationshipType || "partner")}.`
     : "";
+  const languageInstruction =
+    session.language === "BANGLA"
+      ? "Respond entirely in natural Bangla."
+      : "Respond entirely in English.";
 
   return `You are an ultra-realistic erotic roleplay narrator for an interactive sex game. You write vivid, sensory-rich descriptions that make the user feel completely immersed.
 
@@ -363,8 +446,9 @@ CURRENT GAME STATE:
 - Climaxes So Far: ${session.climaxCount}
 
 ${characterContext}
-Scenario: ${session.scenario || "An intimate encounter"}
+Scenario: ${promptValue(session.scenario || "An intimate encounter")}
 Overall Intensity Setting: ${session.intensity}/10
+${languageInstruction}
 
 WRITING RULES:
 - Describe EVERY sensation in exquisite detail: touch, taste, smell, sound, sight
@@ -431,17 +515,21 @@ export async function createSession(
     intensity?: number;
   },
 ): Promise<SexGameSession> {
+  if (!userId.trim()) {
+    throw new Error("userId is required");
+  }
+  const validated = sessionOptionsSchema.parse(options);
   const id = `sexgame_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
   const session: SexGameSession = {
     id,
     userId,
-    characterName: options.characterName || "Your Partner",
-    characterImageUrl: options.characterImageUrl,
-    relationshipType: options.relationshipType || "partner",
-    scenario: options.scenario || "An intimate evening together",
-    language: options.language || "ENGLISH",
-    intensity: Math.min(10, Math.max(1, options.intensity || 7)),
+    characterName: promptValue(validated.characterName || "Your Partner"),
+    characterImageUrl: validated.characterImageUrl,
+    relationshipType: promptValue(validated.relationshipType || "partner"),
+    scenario: promptValue(validated.scenario || "An intimate evening together"),
+    language: validated.language || "ENGLISH",
+    intensity: validated.intensity || 7,
     phase: "FOREPLAY",
     arousal: 5,
     stamina: 100,
@@ -450,6 +538,7 @@ export async function createSession(
     history: [],
     createdAt: new Date(),
     lastActivity: new Date(),
+    version: 0,
   };
 
   await sessionSet(session);
@@ -464,11 +553,22 @@ export async function getSession(
 
 export async function processAction(
   sessionId: string,
-  choiceIndex: number,
+  choiceId: number,
+  expectedVersion: number,
 ): Promise<SexGameScene | { error: string }> {
-  const session = await sessionGet(sessionId);
+  if (!Number.isInteger(choiceId) || choiceId < 1 || choiceId > 10) {
+    return { error: "Invalid choice" };
+  }
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
+    return { error: "Invalid session version" };
+  }
+  return withSessionLock(sessionId, async () => {
+    const session = await sessionGet(sessionId);
   if (!session) {
     return { error: "Session not found or expired" };
+  }
+  if (session.version !== expectedVersion) {
+    return { error: "Session is out of date. Refresh and try again." };
   }
 
   // Get available choices
@@ -476,45 +576,22 @@ export async function processAction(
     session.phase,
     session.arousal,
     session.stamina,
+    session.intensity,
   );
-  const choice = choices.find((c) => c.id === choiceIndex);
+  const choice = choices.find((c) => c.id === choiceId);
   if (!choice) {
     return { error: "Invalid choice" };
   }
 
   // Update session state
   session.round++;
-  session.arousal = Math.min(
-    100,
-    Math.max(0, session.arousal + choice.arousalGain),
-  );
-  session.stamina = Math.min(
-    100,
-    Math.max(0, session.stamina - choice.staminaCost),
-  );
   session.lastActivity = new Date();
 
-  // Check for climax
-  let climaxAchieved = false;
-  let sessionComplete = false;
-
-  // Determine new phase based on arousal
-  const newPhase = getPhaseForArousal(session.arousal);
-
-  // Phase transition logic
-  if (session.phase === "INTENSE_ACT" && newPhase === "CLIMAX") {
-    climaxAchieved = true;
-    session.climaxCount++;
-    session.phase = "CLIMAX";
-    // After climax, next phase is aftercare
-  } else if (session.phase === "CLIMAX") {
-    // After climax scene, move to aftercare
-    session.phase = "AFTERCARE";
-  } else if (session.phase === "AFTERCARE") {
-    sessionComplete = true;
-  } else {
-    session.phase = newPhase;
-  }
+  const transition = transitionState(session, choice);
+  session.phase = transition.phase;
+  session.arousal = transition.arousal;
+  session.stamina = transition.stamina;
+  session.climaxCount = transition.climaxCount;
 
   // Generate AI scene description
   const systemPrompt = buildSceneSystemPrompt(session);
@@ -543,12 +620,18 @@ export async function processAction(
   });
 
   // Persist updated state
+  session.version++;
   await sessionSet(session);
 
   // Get next choices
-  const nextChoices = sessionComplete
+  const nextChoices = transition.sessionComplete
     ? []
-    : generateChoicesForPhase(session.phase, session.arousal, session.stamina);
+    : generateChoicesForPhase(
+        session.phase,
+        session.arousal,
+        session.stamina,
+        session.intensity,
+      );
 
   return {
     phase: session.phase,
@@ -557,13 +640,15 @@ export async function processAction(
     round: session.round,
     description,
     choices: nextChoices,
-    climaxAchieved,
+    climaxAchieved: transition.climaxAchieved,
     climaxCount: session.climaxCount,
-    sessionComplete,
+    sessionComplete: transition.sessionComplete,
+    version: session.version,
   };
+  });
 }
 
-function getFallbackDescription(
+export function getFallbackDescription(
   session: SexGameSession,
   choiceText: string,
 ): string {
@@ -609,9 +694,10 @@ export async function generateStartScene(
 ): Promise<SexGameScene> {
   const systemPrompt = `You are the narrator for an immersive erotic sex game. Write a vivid, sensory opening scene.
 
-Character: ${session.characterName} (your ${session.relationshipType})
-Scenario: ${session.scenario}
+Character: ${promptValue(session.characterName)} (your ${promptValue(session.relationshipType)})
+Scenario: ${promptValue(session.scenario)}
 Intensity Level: ${session.intensity}/10
+${session.language === "BANGLA" ? "Respond entirely in natural Bangla." : "Respond entirely in English."}
 
 Describe the opening moment of this intimate encounter. Set the scene with rich sensory details — where they are, the lighting, the mood, the anticipation. Build the atmosphere. Describe how they look, how they smell, the electricity in the air.
 
@@ -620,7 +706,7 @@ Write 2-3 paragraphs of ultra-realistic, immersive description. This is the begi
   let description: string;
   try {
     const result = await generateText({
-      prompt: `Set the scene for an intimate encounter between the user and ${session.characterName}. Scenario: ${session.scenario}. Describe the moment they first touch, kiss, or acknowledge the desire between them. Make it vivid and sensory.`,
+      prompt: `Set the scene for an intimate encounter between the user and ${promptValue(session.characterName)}. Scenario: ${promptValue(session.scenario)}. Describe the moment they first touch, kiss, or acknowledge the desire between them. Make it vivid and sensory.`,
       systemPrompt,
       maxTokens: 800,
       temperature: 0.9,
@@ -638,10 +724,13 @@ Write 2-3 paragraphs of ultra-realistic, immersive description. This is the begi
     description: description.substring(0, 500),
   });
 
+  await sessionSet(session);
+
   const choices = generateChoicesForPhase(
     "FOREPLAY",
     session.arousal,
     session.stamina,
+    session.intensity,
   );
 
   return {
@@ -654,6 +743,7 @@ Write 2-3 paragraphs of ultra-realistic, immersive description. This is the begi
     climaxAchieved: false,
     climaxCount: 0,
     sessionComplete: false,
+    version: session.version,
   };
 }
 
