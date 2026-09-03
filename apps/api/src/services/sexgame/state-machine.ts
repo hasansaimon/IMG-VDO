@@ -1,15 +1,20 @@
-import type { GamePhase, SexGameChoice, SexGameSession } from "./sex-game";
+import type {
+  GamePhase,
+  SexGameChoice,
+  SexGameSession,
+} from "./sex-game";
 
-export interface StateTransition {
-  phase: GamePhase;
-  arousal: number;
-  stamina: number;
+export interface TransitionResult {
+  session: SexGameSession;
+  actionPhase: GamePhase;
+  choice: SexGameChoice;
   climaxAchieved: boolean;
   sessionComplete: boolean;
-  climaxCount: number;
 }
 
-export function getPhaseForArousal(arousal: number): GamePhase {
+export function getPhaseForArousal(
+  arousal: number,
+): GamePhase {
   if (arousal >= 90) return "CLIMAX";
   if (arousal >= 70) return "INTENSE_ACT";
   if (arousal >= 50) return "ACT";
@@ -17,53 +22,81 @@ export function getPhaseForArousal(arousal: number): GamePhase {
   return "FOREPLAY";
 }
 
-export function transitionState(
-  session: Pick<SexGameSession, "phase" | "arousal" | "stamina" | "climaxCount">,
-  choice: Pick<SexGameChoice, "arousalGain" | "staminaCost">,
-): StateTransition {
-  const arousal = Math.min(100, Math.max(0, session.arousal + choice.arousalGain));
-  const stamina = Math.min(100, Math.max(0, session.stamina - choice.staminaCost));
-  const nextPhase = getPhaseForArousal(arousal);
+export function transitionSession(
+  source: SexGameSession,
+  choice: SexGameChoice,
+): TransitionResult {
+  const session: SexGameSession = {
+    ...source,
+    history: [...source.history],
+    lastActivity: new Date(),
+  };
 
-  if (nextPhase === "CLIMAX" && session.phase !== "CLIMAX") {
-    return {
-      phase: "CLIMAX",
-      arousal,
-      stamina,
-      climaxAchieved: true,
-      sessionComplete: false,
-      climaxCount: session.climaxCount + 1,
-    };
+  const actionPhase = source.phase;
+
+  // Apply action effects.
+  session.round += 1;
+
+  session.arousal = Math.max(
+    0,
+    Math.min(
+      100,
+      source.arousal + choice.arousalGain,
+    ),
+  );
+
+  session.stamina = Math.max(
+    0,
+    Math.min(
+      100,
+      source.stamina - choice.staminaCost,
+    ),
+  );
+
+  let climaxAchieved = false;
+  let sessionComplete = false;
+
+  const calculatedPhase = getPhaseForArousal(
+    session.arousal,
+  );
+
+  switch (source.phase) {
+    case "CLIMAX": {
+      // A climax scene has been completed.
+      session.phase = "AFTERCARE";
+      break;
+    }
+
+    case "AFTERCARE": {
+      // Completing an aftercare action ends the session.
+      session.phase = "AFTERCARE";
+      sessionComplete = true;
+      break;
+    }
+
+    default: {
+      if (
+        calculatedPhase === "CLIMAX" &&
+        source.phase !== "CLIMAX"
+      ) {
+        climaxAchieved = true;
+        session.climaxCount += 1;
+        session.phase = "CLIMAX";
+      } else {
+        session.phase = calculatedPhase;
+      }
+
+      break;
+    }
   }
 
-  if (session.phase === "CLIMAX") {
-    return {
-      phase: "AFTERCARE",
-      arousal,
-      stamina,
-      climaxAchieved: false,
-      sessionComplete: false,
-      climaxCount: session.climaxCount,
-    };
-  }
-
-  if (session.phase === "AFTERCARE") {
-    return {
-      phase: "AFTERCARE",
-      arousal,
-      stamina,
-      climaxAchieved: false,
-      sessionComplete: true,
-      climaxCount: session.climaxCount,
-    };
-  }
+  session.version += 1;
 
   return {
-    phase: nextPhase,
-    arousal,
-    stamina,
-    climaxAchieved: false,
-    sessionComplete: false,
-    climaxCount: session.climaxCount,
+    session,
+    actionPhase,
+    choice,
+    climaxAchieved,
+    sessionComplete,
   };
 }
