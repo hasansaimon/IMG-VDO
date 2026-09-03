@@ -29,6 +29,7 @@ const videoQueue = new Queue<GenerationJobData>("video-generation", {
     removeOnFail: 50,
   },
 });
+const MAX_ATTEMPTS = 3;
 
 // ─── Queue Processor ──────────────────────────────────────────────────────────
 
@@ -57,6 +58,10 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
       aspectRatio: data.metadata?.aspectRatio,
       quality: data.metadata?.quality,
     });
+
+    if (!result.videoUrl) {
+      throw new Error(`${result.provider} returned no video URL`);
+    }
 
     // Update job as COMPLETED
     await prisma.generationJob.update({
@@ -87,15 +92,25 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
 
-    // Update job as FAILED
+    const isFinalAttempt = job.attemptsMade + 1 >= MAX_ATTEMPTS;
+
+    // Keep retryable jobs queued until BullMQ makes the final attempt.
     await prisma.generationJob.update({
       where: { id: data.jobId },
       data: {
-        status: "FAILED",
+        status: isFinalAttempt ? "FAILED" : "QUEUED",
+        progress: isFinalAttempt ? 0 : 10,
         errorMessage: message,
         retryCount: { increment: 1 },
       },
     });
+
+    if (isFinalAttempt) {
+      await prisma.scene.update({
+        where: { id: data.sceneId },
+        data: { status: "FAILED" },
+      });
+    }
 
     logger.error({ jobId: job.id, error: message }, "Video generation failed");
     throw error;
