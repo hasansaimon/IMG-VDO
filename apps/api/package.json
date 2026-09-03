@@ -1,5 +1,5 @@
 {
-  "name": "@storybook/api",
+  "name": "@img-vdo/api",
   "version": "1.0.0",
   "description": "Backend API for Image-to-Video Storybook",
   "main": "dist/index.js",
@@ -15,10 +15,12 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:unit:node": "node --experimental-strip-types src/__tests__/run-unit.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.7.0",
+    "@img-vdo/video-generator": "*",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^6.3.2",

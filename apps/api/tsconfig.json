@@ -16,7 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["../../packages/shared/src/*"]
+      "@shared/*": ["../../packages/shared/src/*"],
+      "@img-vdo/video-generator": ["../../packages/video-generator/src/index.ts"]
     }
   },
   "include": ["src"],

@@ -19,9 +19,13 @@ model User {
   lastName  String?
   avatar    String?
 
-  dateOfBirth       DateTime?
-  termsAcceptedAt   DateTime?
-  privacyAcceptedAt DateTime?
+  dateOfBirth                 DateTime?
+  termsAcceptedAt             DateTime?
+  privacyAcceptedAt           DateTime?
+  adultContentAcknowledgedAt  DateTime?
+  termsVersion                String?
+  privacyVersion              String?
+  adultContentVersion         String?
 
   role   UserRole   @default(USER)
   status UserStatus @default(ACTIVE)

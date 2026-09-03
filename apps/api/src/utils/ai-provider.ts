@@ -10,6 +10,7 @@
  */
 
 import axios from "axios";
+import { storeFromUrl, storeObject } from "@img-vdo/video-generator";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -410,6 +411,25 @@ export async function generateVideo(
 ): Promise<{ videoUrl: string; provider: string }> {
   const { provider } = options;
 
+  const persist = async (url: string, fallbackProvider: string) => {
+    if (!url) return { videoUrl: "", provider: fallbackProvider };
+    try {
+      const stored = await storeFromUrl(url, {
+        prefix: "videos",
+        contentType: "video/mp4",
+      });
+      return { videoUrl: stored.url, provider: fallbackProvider };
+    } catch (err) {
+      if (url.startsWith("data:")) {
+        throw new Error(
+          `Failed to persist generated video: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+      console.warn("Could not re-host provider video URL:", err);
+      return { videoUrl: url, provider: fallbackProvider };
+    }
+  };
+
   switch (provider) {
     case "RUNWAY": {
       const key = resolveApiKey(
@@ -436,7 +456,7 @@ export async function generateVideo(
           timeout: 120000,
         },
       );
-      return { videoUrl: response.data.video_url, provider: "RUNWAY" };
+      return persist(response.data.video_url, "RUNWAY");
     }
 
     case "PIKA": {
@@ -459,7 +479,7 @@ export async function generateVideo(
           timeout: 120000,
         },
       );
-      return { videoUrl: response.data.video_url, provider: "PIKA" };
+      return persist(response.data.video_url, "PIKA");
     }
 
     case "COGVIDEOX":
@@ -479,11 +499,20 @@ export async function generateVideo(
             { timeout: 300000 },
           );
           if (colabResponse.data?.video_url || colabResponse.data?.video) {
-            return {
-              videoUrl:
-                colabResponse.data.video_url || colabResponse.data.video,
-              provider: "COGVIDEOX",
-            };
+            const raw =
+              colabResponse.data.video_url || colabResponse.data.video;
+            try {
+              const stored = await storeFromUrl(raw, {
+                prefix: "videos",
+                contentType: "video/mp4",
+              });
+              return { videoUrl: stored.url, provider: "COGVIDEOX" };
+            } catch {
+              if (typeof raw === "string" && raw.startsWith("data:")) {
+                throw new Error("Colab returned a data URL that could not be stored");
+              }
+              return { videoUrl: raw, provider: "COGVIDEOX" };
+            }
           }
         } catch (error) {
           console.warn(
@@ -519,9 +548,18 @@ export async function generateVideo(
             timeout: 300000,
           },
         );
-        const base64 = Buffer.from(response.data).toString("base64");
+        const body = Buffer.from(response.data);
+        const contentType = String(response.headers["content-type"] || "");
+        if (body.length === 0 || contentType.includes("application/json")) {
+          throw new Error("Hugging Face returned a non-video payload");
+        }
+        const stored = await storeObject(body, {
+          contentType: "video/mp4",
+          prefix: "videos",
+          ext: ".mp4",
+        });
         return {
-          videoUrl: `data:video/mp4;base64,${base64}`,
+          videoUrl: stored.url,
           provider: "COGVIDEOX",
         };
       } catch (error) {

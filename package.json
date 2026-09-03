@@ -1,7 +1,7 @@
 {
-  "name": "image-video-storybook",
+  "name": "img-vdo",
   "version": "1.0.0",
-  "description": "Professional NSFW Image-to-Video Storybook Platform — Unrestricted Content Generation",
+  "description": "IMG-VDO — Professional unrestricted NSFW Image-to-Video Storybook Platform",
   "private": true,
   "workspaces": [
     "apps/*",

@@ -2,12 +2,11 @@ import { Router, Response } from "express";
 import multer from "multer";
 import { z } from "zod";
 import path from "node:path";
-import crypto from "node:crypto";
 import { AuthRequest } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
 import { isSafeUrl, fetchSafe } from "../lib/security";
 import { logger } from "../lib/logger";
-import { config } from "../config";
+import { storeObject } from "@img-vdo/video-generator";
 
 const router = Router();
 
@@ -51,18 +50,22 @@ router.post("/", upload.single("file"), async (req: AuthRequest, res: Response) 
 
     if (req.file) {
       const ext = path.extname(req.file.originalname).toLowerCase().slice(0, 8) || ".bin";
-      const safeName = `${crypto.randomUUID()}${ext}`;
       const buf = req.file.buffer;
+      const stored = await storeObject(buf, {
+        contentType: req.file.mimetype,
+        prefix: "uploads",
+        ext,
+      });
 
       const asset = await prisma.mediaAsset.create({
         data: {
-          url: `local://${safeName}`,
+          url: stored.url,
           assetType: "IMAGE",
           label: req.body.label?.slice(0, 200),
           description: req.body.description?.slice(0, 2000),
           mimeType: req.file.mimetype,
           sizeBytes: buf.length,
-          storageKind: "LOCAL",
+          storageKind: stored.backend === "s3" ? "REMOTE" : "LOCAL",
           userId,
         },
       });
@@ -79,15 +82,20 @@ router.post("/", upload.single("file"), async (req: AuthRequest, res: Response) 
       }
 
       const buf = await fetchSafe(data.url, { maxBytes: MAX_BYTES });
+      const stored = await storeObject(buf, {
+        contentType:
+          data.assetType === "VIDEO" ? "video/mp4" : "application/octet-stream",
+        prefix: data.assetType === "VIDEO" ? "videos" : "uploads",
+      });
 
       const asset = await prisma.mediaAsset.create({
         data: {
-          url: data.url,
+          url: stored.url,
           assetType: data.assetType,
           label: data.label,
           description: data.description,
-          sizeBytes: buf.length,
-          storageKind: "REMOTE",
+          sizeBytes: stored.sizeBytes || buf.length,
+          storageKind: stored.backend === "s3" ? "REMOTE" : "LOCAL",
           userId,
         },
       });

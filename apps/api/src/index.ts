@@ -7,6 +7,7 @@ import { createClient } from "redis";
 import { config } from "./config";
 import { errorHandler } from "./middleware/errorHandler";
 import { authMiddleware } from "./middleware/auth";
+import { requireAdultConsent } from "./middleware/adultConsent";
 import { globalRateLimiter } from "./middleware/rateLimit";
 import { logger } from "./lib/logger";
 import { prisma } from "./lib/prisma";
@@ -36,6 +37,7 @@ import sceneStateRoutes from "./routes/scene-state";
 import visualProfileRoutes from "./routes/visual-profiles";
 import videoCallRoutes from "./routes/video-calls";
 import conversationsRoutes from "./routes/conversations";
+import { localStorageRoot } from "@img-vdo/video-generator";
 
 const app = express();
 
@@ -106,30 +108,44 @@ app.use("/api/models", modelsRoutes);
 app.use("/api/offline", offlineRoutes);
 
 // ─── Protected routes ────────────────────────────────────────────────────
+// Adult-generation routes require age + legal consent after auth.
+
+const adult = [authMiddleware, requireAdultConsent] as const;
 
 app.use("/api/dashboard", authMiddleware, dashboardRoutes);
-app.use("/api/storyboards", authMiddleware, storyboardRoutes);
-app.use("/api/characters", authMiddleware, characterRoutes);
-app.use("/api/stories", authMiddleware, storyRoutes);
-app.use("/api/stories", authMiddleware, buildStoryRoutes);
-app.use("/api/scenes", authMiddleware, sceneRoutes);
-app.use("/api/creative", authMiddleware, creativeRoutes);
-app.use("/api/videos", authMiddleware, videosRoutes);
-app.use("/api/publish", authMiddleware, publishingRoutes);
-app.use("/api/export", authMiddleware, publishingRoutes);
-app.use("/api/roleplay", authMiddleware, roleplayRoutes);
-app.use("/api/roleplay/conversations", authMiddleware, conversationsRoutes);
-app.use("/api/roleplay/memories", authMiddleware, memoriesRoutes);
-app.use("/api/roleplay/lorebook", authMiddleware, lorebookRoutes);
-app.use("/api/roleplay/relationships", authMiddleware, relationshipsRoutes);
-app.use("/api/roleplay/scene-state", authMiddleware, sceneStateRoutes);
-app.use("/api/characters", authMiddleware, visualProfileRoutes);
-app.use("/api/video-calls", authMiddleware, videoCallRoutes);
-app.use("/api/unrestricted", authMiddleware, unrestrictedRoutes);
+app.use("/api/storyboards", ...adult, storyboardRoutes);
+app.use("/api/characters", ...adult, characterRoutes);
+app.use("/api/stories", ...adult, storyRoutes);
+app.use("/api/stories", ...adult, buildStoryRoutes);
+app.use("/api/scenes", ...adult, sceneRoutes);
+app.use("/api/creative", ...adult, creativeRoutes);
+app.use("/api/videos", ...adult, videosRoutes);
+app.use("/api/publish", ...adult, publishingRoutes);
+app.use("/api/export", ...adult, publishingRoutes);
+app.use("/api/roleplay", ...adult, roleplayRoutes);
+app.use("/api/roleplay/conversations", ...adult, conversationsRoutes);
+app.use("/api/roleplay/memories", ...adult, memoriesRoutes);
+app.use("/api/roleplay/lorebook", ...adult, lorebookRoutes);
+app.use("/api/roleplay/relationships", ...adult, relationshipsRoutes);
+app.use("/api/roleplay/scene-state", ...adult, sceneStateRoutes);
+app.use("/api/characters", ...adult, visualProfileRoutes);
+app.use("/api/video-calls", ...adult, videoCallRoutes);
+app.use("/api/unrestricted", ...adult, unrestrictedRoutes);
 app.use("/api/user/keys", authMiddleware, userKeysRoutes);
-app.use("/api/media-assets", authMiddleware, mediaAssetsRoutes);
-app.use("/api/sex-game", authMiddleware, sexGameRoutes);
+app.use("/api/media-assets", ...adult, mediaAssetsRoutes);
+app.use("/api/sex-game", ...adult, sexGameRoutes);
 app.use("/api/me", authMiddleware, gdprRoutes);
+
+// Local object-storage fallback (used when STORAGE_BACKEND=local)
+app.use(
+  "/media",
+  express.static(localStorageRoot(), {
+    fallthrough: false,
+    index: false,
+    maxAge: "1y",
+    immutable: true,
+  }),
+);
 
 // ─── 404 + error handler ─────────────────────────────────────────────────
 

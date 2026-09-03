@@ -1,30 +1,24 @@
-# Image-to-Video Visual Storybook
+# IMG-VDO — Image-to-Video Visual Storybook
 
-A comprehensive platform for converting images into cinematic videos with adult content support.
+Professional unrestricted NSFW creative platform for AI-powered stories, roleplay, image & video generation.
+
+**Repo:** https://github.com/hasansaimon/IMG-VDO
 
 ## Features
 
-✨ **Core Features**
-- Image-to-video generation using AI (Runway ML, Pika Labs, CogVideoX)
-- Adult-content-enabled generation workflows
-- Visual storybook interface with timeline editor
-- Batch processing support
-- Video gallery and archive management
-- Progress tracking and webhooks
-
-🔒 **Security**
-- User access controls
-- Audit logging
-
-🚀 **Performance**
-- Async job processing with Bull Queue
-- Redis caching
-- Optimized video encoding
-- CDN integration ready
+- **Image-to-video** generation (CogVideoX free via HuggingFace + BYOK Runway / Pika)
+- **Unrestricted adult content** workflows (no filters by design)
+- Visual storybook + timeline editor
+- NSFW roleplay AI companion (memories, lorebook, relationships, scene state)
+- Sex-game state machine, video-call sessions
+- Batch processing, gallery/archive, progress tracking & webhooks
+- Capacitor Android wrapper
+- Optional `carnal-roulette` VR-style interactive module
 
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - PostgreSQL 14+
 - Redis 6+
@@ -33,186 +27,100 @@ A comprehensive platform for converting images into cinematic videos with adult 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/samredwings/image-video-storybook.git
-cd image-video-storybook
+git clone https://github.com/hasansaimon/IMG-VDO.git
+cd IMG-VDO
 
-# Install dependencies
 npm install
 
-# Setup environment variables
 cp .env.example .env.local
+# Edit .env.local — at minimum set HUGGINGFACE_API_KEY for free tier
 
-# Run migrations
 npm run db:migrate
-
-# Start development server
 npm run dev
 ```
 
-### Docker Setup
+### Docker (production-style stack)
 
 ```bash
-docker-compose up -d
-npm run db:migrate
-npm run dev
+# Infrastructure + API + worker (multi-stage builds)
+docker compose up -d --build
+
+# Run Prisma migrations once
+docker compose run --rm migrate
+
+# API health
+curl -s http://localhost:3001/health
 ```
+
+Build individual images:
+
+```bash
+docker build --target api -t img-vdo-api .
+docker build --target worker -t img-vdo-worker .
+```
+
+Services: `postgres`, `redis`, `minio` (+ bucket init), `api` (`:3001`), `worker`.  
+Set `HUGGINGFACE_API_KEY` (and optional BYOK keys) in the environment or a `.env` file before starting the worker.
 
 ## Project Structure
 
 ```
 .
 ├── apps/
-│   ├── api/              # Backend API (Express/Node.js)
-│   ├── web/              # Frontend (Next.js/React)
-│   └── worker/           # Job processing worker
+│   ├── api/          # Express + Prisma + BullMQ (port 3001)  [@img-vdo/api]
+│   ├── web/          # Next.js frontend + Capacitor Android
+│   └── worker/       # Background video generation worker     [@img-vdo/worker]
 ├── packages/
-│   ├── shared/           # Shared types and utilities
-│   └── video-generator/  # Video generation integrations
+│   ├── shared/       # Shared TypeScript types & enums        [@img-vdo/shared]
+│   └── video-generator/                                       [@img-vdo/video-generator]
+├── carnal-roulette/  # Standalone VR/interactive adult module
+├── Dockerfile        # multi-stage: targets api | worker
 ├── docker-compose.yml
-├── package.json
-└── tsconfig.json
+└── package.json      # Turborepo workspaces
 ```
 
-## Architecture
+## Tech Stack
 
-### Tech Stack
+| Layer     | Stack                                      |
+|-----------|--------------------------------------------|
+| Frontend  | Next.js, React, TypeScript, TailwindCSS    |
+| Backend   | Node.js, Express, Prisma, PostgreSQL       |
+| Queue     | BullMQ + Redis                             |
+| Storage   | AWS S3 / MinIO                             |
+| AI (free) | HuggingFace (Mistral/Llama, SDXL, CogVideoX) |
+| AI (BYOK) | OpenAI, Runway, Pika, ElevenLabs (optional)|
 
-**Frontend:**
-- Next.js 14
-- React 18
-- TypeScript
-- TailwindCSS
-- Framer Motion (animations)
-- FFmpeg.wasm (client-side video handling)
+## Environment
 
-**Backend:**
-- Node.js + Express
-- TypeScript
-- PostgreSQL + Prisma ORM
-- Redis + Bull Queue
-- AWS S3/MinIO
+See `.env.example`. Key settings:
 
-**AI/ML:**
-- Runway ML API
-- Pika Labs API
-- CogVideoX (open-source)
-
-## Configuration
-
-### Environment Variables
-
-```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/image_video_storybook
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# AWS S3
-AWS_ACCESS_KEY_ID=your_key
-AWS_SECRET_ACCESS_KEY=your_secret
-AWS_REGION=us-east-1
-AWS_S3_BUCKET=video-storage
-
-# API Keys
-RUNWAY_API_KEY=your_key
-PIKA_API_KEY=your_key
-
-# Application
-NEXT_PUBLIC_API_URL=http://localhost:3000
-JWT_SECRET=your_secret_key
-```
-
-## API Documentation
-
-### Video Generation
-
-```bash
-POST /api/videos/generate
-Content-Type: application/json
-
-{
-  "imageUrl": "https://example.com/image.jpg",
-  "prompt": "cinematic pan across mountains",
-  "duration": 5,
-  "provider": "runway",
-  "motionStrength": 0.7,
-}
-```
-
-### Storyboard Management
-
-```bash
-GET /api/storyboards
-POST /api/storyboards
-GET /api/storyboards/:id
-PUT /api/storyboards/:id
-DELETE /api/storyboards/:id
-```
+- `HUGGINGFACE_API_KEY` — free tier (required for default models)
+- `DATABASE_URL`, `REDIS_URL`
+- `ADULT_CONTENT_ALLOWED=true` / `UNRESTRICTED_MODE=true`
+- Optional BYOK keys for premium providers
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Unit tests
+npm run dev          # all apps via turbo
+npm run build
+npm run lint
+npm run type-check
 npm run test:unit
 
-# Integration tests
-npm run test:integration
+# API only
+cd apps/api && npm run dev
 
-# E2E tests
-npm run test:e2e
-
-# Coverage
-npm run test:coverage
+# Worker
+npm run worker:dev
 ```
-
-### Code Quality
-
-```bash
-# Lint
-npm run lint
-
-# Format
-npm run format
-
-# Type check
-npm run type-check
-```
-
-## Deployment
-
-### Production Build
-
-```bash
-npm run build
-npm run start
-```
-
-### Docker Build
-
-```bash
-docker build -t image-video-storybook:latest .
-docker push your-registry/image-video-storybook:latest
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT — see [LICENSE](LICENSE)
 
-## Support
+## Notes
 
-- 📖 [Documentation](https://docs.example.com)
-- 💬 [Discord Community](https://discord.gg/example)
-- 🐛 [Issue Tracker](https://github.com/samredwings/image-video-storybook/issues)
-- 📧 support@example.com
+- This platform is intentionally unrestricted for adult content. Use responsibly and in compliance with local laws.
+- **Age & consent:** registration requires DOB (18+), Terms, Privacy, and explicit adult-content acknowledgment. Legal document versions are tracked; outdated acceptance blocks adult routes until `POST /api/auth/consent`. Production always enforces age checks.
+- Generated videos are uploaded to S3/MinIO (or `./uploads` when `STORAGE_BACKEND=local`) and stored as HTTP URLs — not base64 data URLs.

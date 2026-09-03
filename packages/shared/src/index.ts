@@ -85,6 +85,8 @@ export interface VideoGenerationResult {
   thumbnail: string;
   provider: VideoProvider;
   duration: number;
+  storageKey?: string;
+  storageBackend?: "s3" | "local";
 }
 
 export interface StoryGenerationRequest {

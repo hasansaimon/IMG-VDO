@@ -18,6 +18,10 @@ const envSchema = z.object({
   AWS_REGION: z.string().default("us-east-1"),
   AWS_S3_BUCKET: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
+  S3_PUBLIC_URL: z.string().optional(),
+  STORAGE_BACKEND: z.enum(["s3", "local"]).default("s3"),
+  STORAGE_LOCAL_PATH: z.string().default("./uploads"),
+  PUBLIC_API_URL: z.string().optional(),
   HUGGINGFACE_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   RUNWAY_API_KEY: z.string().optional(),
@@ -66,8 +70,12 @@ export const config = {
     max: parsed.data.RATE_LIMIT_MAX,
   },
   age: {
-    requireVerification: parsed.data.REQUIRE_AGE_VERIFICATION,
-    min: parsed.data.MIN_AGE,
+    // Production always requires age verification regardless of env flag
+    requireVerification:
+      parsed.data.NODE_ENV === "production"
+        ? true
+        : parsed.data.REQUIRE_AGE_VERIFICATION,
+    min: Math.max(18, parsed.data.MIN_AGE),
   },
   database: { url: parsed.data.DATABASE_URL },
   redis: { url: parsed.data.REDIS_URL },
@@ -77,6 +85,12 @@ export const config = {
     region: parsed.data.AWS_REGION,
     s3Bucket: parsed.data.AWS_S3_BUCKET,
     s3Endpoint: parsed.data.S3_ENDPOINT,
+    s3PublicUrl: parsed.data.S3_PUBLIC_URL,
+  },
+  storage: {
+    backend: parsed.data.STORAGE_BACKEND,
+    localPath: parsed.data.STORAGE_LOCAL_PATH,
+    publicApiUrl: parsed.data.PUBLIC_API_URL,
   },
   ai: {
     huggingfaceApiKey: parsed.data.HUGGINGFACE_API_KEY,

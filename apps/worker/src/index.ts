@@ -5,8 +5,8 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { PrismaClient } from "@prisma/client";
 import pino from "pino";
-import { generateVideo } from "@storybook/video-generator";
-import type { GenerationJobData } from "@storybook/shared";
+import { generateVideo } from "@img-vdo/video-generator";
+import type { GenerationJobData } from "@img-vdo/shared";
 
 const logger = pino({
   name: "storybook-worker",
@@ -61,6 +61,10 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
 
     if (!result.videoUrl) {
       throw new Error(`${result.provider} returned no video URL`);
+    }
+
+    if (result.videoUrl.startsWith("data:")) {
+      throw new Error("Refusing to persist a data-URL video; storage upload is required");
     }
 
     // Update job as COMPLETED

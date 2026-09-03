@@ -57,3 +57,21 @@ uploads/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Temp / editor backups
+*.bak
+*.save
+*.tmp
+* (1)*
+*.orig
+
+# Android / Capacitor build artifacts (keep source)
+apps/web/android/app/build/
+apps/web/android/.gradle/
+apps/web/android/local.properties
+*.apk
+*.aab
+
+# Prisma
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
