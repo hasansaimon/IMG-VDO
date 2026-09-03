@@ -113,7 +113,7 @@ function getPhaseDescription(
       return (
         "The encounter is winding down. " +
         "Focus on warmth, reassurance, quiet conversation, " +
-        comfort, recovery, and emotional connection."
+        "comfort, recovery, and emotional connection."
       );
 
     default:
