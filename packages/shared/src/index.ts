@@ -193,3 +193,4 @@ export interface ImageAnalysisResult {
   setting: string;
   characterHints: string[];
 }
+export * from "./roleplay";
