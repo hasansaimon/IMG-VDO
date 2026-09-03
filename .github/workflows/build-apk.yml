@@ -1,4 +1,4 @@
-crename: Build and Release APK
+name: Build and Release APK
 
 on:
   push:
@@ -53,12 +53,21 @@ jobs:
       - name: Build web app (apps/web)
         run: npm run build --prefix apps/web
 
-      - name: Set up Android SDK (action)
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           api-level: ${{ github.event.inputs.api-level || env.ANDROID_API_LEVEL }}
           build-tools: ${{ github.event.inputs.build-tools || env.ANDROID_BUILD_TOOLS }}
-        # the action sets ANDROID_SDK_ROOT; we'll use sdkmanager below as a fallback/ensurer
+
+      - name: Verify Android SDK environment
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_SDK_ROOT:-}" ]; then
+            echo "ERROR: ANDROID_SDK_ROOT not set by setup-android action"
+            exit 1
+          fi
+          echo "ANDROID_SDK_ROOT is set to: $ANDROID_SDK_ROOT"
+          ls -la "${ANDROID_SDK_ROOT}/" || echo "Warning: Could not list ANDROID_SDK_ROOT"
 
       - name: Ensure Android SDK components and licenses
         run: |
@@ -67,10 +76,10 @@ jobs:
           BUILD_TOOLS="${{ github.event.inputs.build-tools || env.ANDROID_BUILD_TOOLS }}"
           echo "Ensuring Android SDK components: platforms;android-${API_LEVEL}, build-tools;${BUILD_TOOLS}, platform-tools"
 
-          # find sdkmanager in common locations or rely on PATH
-          if [ -x "${ANDROID_SDK_ROOT:-}/cmdline-tools/latest/bin/sdkmanager" ]; then
+          # Find sdkmanager in common locations or rely on PATH
+          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
             SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
-          elif [ -x "${ANDROID_SDK_ROOT:-}/tools/bin/sdkmanager" ]; then
+          elif [ -x "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" ]; then
             SDKMANAGER="${ANDROID_SDK_ROOT}/tools/bin/sdkmanager"
           else
             SDKMANAGER="sdkmanager"
@@ -88,20 +97,44 @@ jobs:
         run: chmod +x ./apps/web/android/gradlew
 
       - name: Build APK with Gradle
-        run: |
-          cd apps/web/android
-          ./gradlew assembleRelease --no-daemon
+        run: ./apps/web/android/gradlew -p ./apps/web/android assembleRelease --no-daemon
+        # Fixed: Use full path and -p flag to specify project directory
 
-      - name: Get APK file
+      - name: Locate APK file
         id: apk
         run: |
-          APK_PATH=$(find apps/web/android/app/build/outputs/apk -name "*.apk" | head -1)
+          set -euo pipefail
+          # Search for release APK in common output locations
+          APK_PATH=$(find ./apps/web/android -name "*release*.apk" -type f 2>/dev/null | head -1)
+          
           if [ -z "$APK_PATH" ]; then
-            echo "No APK found"
+            echo "ERROR: No release APK found"
+            echo "Searching for any APK files..."
+            find ./apps/web/android -name "*.apk" -type f 2>/dev/null || echo "No APK files found at all"
             exit 1
           fi
+          
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "apk_name=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK_PATH"
+          ls -lh "$APK_PATH"
+
+      - name: Verify APK integrity
+        run: |
+          set -euo pipefail
+          APK_FILE="${{ steps.apk.outputs.apk_path }}"
+          
+          if [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: APK file not found at $APK_FILE"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -f%z "$APK_FILE" 2>/dev/null || stat -c%s "$APK_FILE" 2>/dev/null)
+          echo "APK file size: $FILE_SIZE bytes"
+          
+          if [ "$FILE_SIZE" -lt 1000000 ]; then
+            echo "WARNING: APK file seems unusually small (< 1MB)"
+          fi
 
       - name: Create Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
@@ -115,7 +148,7 @@ jobs:
 
       - name: Upload APK as artifact (on push)
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ steps.apk.outputs.apk_path }}
