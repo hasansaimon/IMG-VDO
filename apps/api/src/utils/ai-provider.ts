@@ -63,6 +63,21 @@ function getServerKey(key: string): string | undefined {
   return process.env[key];
 }
 
+async function withRetries<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Provider request failed");
+}
+
 function resolveApiKey(
   userKeys: UserApiKeys | undefined,
   userField: keyof UserApiKeys,
@@ -350,26 +365,34 @@ export async function generateImage(
     );
   }
 
-  const response = await axios.post(
-    "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
-    {
-      inputs: prompt,
-      parameters: {
-        negative_prompt: negativePrompt,
-        num_inference_steps: numSteps,
-        guidance_scale: guidanceScale,
+  const response = await withRetries(() =>
+    axios.post(
+      "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+      {
+        inputs: prompt,
+        parameters: {
+          negative_prompt: negativePrompt,
+          num_inference_steps: numSteps,
+          guidance_scale: guidanceScale,
+        },
       },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${hfKey}`,
+      {
+        headers: {
+          Authorization: `Bearer ${hfKey}`,
+        },
+        responseType: "arraybuffer",
+        timeout: 120000,
       },
-      responseType: "arraybuffer",
-      timeout: 120000,
-    },
+    ),
   );
 
-  const base64 = Buffer.from(response.data).toString("base64");
+  const imageBytes = Buffer.from(response.data);
+  const contentType = String(response.headers["content-type"] || "");
+  if (imageBytes.length === 0 || contentType.includes("application/json")) {
+    throw new Error("Hugging Face returned an invalid image response");
+  }
+
+  const base64 = imageBytes.toString("base64");
   return {
     imageBase64: `data:image/jpeg;base64,${base64}`,
     provider: "huggingface",
