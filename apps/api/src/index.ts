@@ -29,6 +29,11 @@ import mediaAssetsRoutes from "./routes/media-assets";
 import buildStoryRoutes from "./routes/build-story";
 import sexGameRoutes from "./routes/sex-game";
 import gdprRoutes from "./routes/gdpr";
+import memoriesRoutes from "./routes/memories";
+import lorebookRoutes from "./routes/lorebook";
+import relationshipsRoutes from "./routes/relationships";
+import sceneStateRoutes from "./routes/scene-state";
+import conversationsRoutes from "./routes/conversations";
 
 const app = express();
 
@@ -104,6 +109,11 @@ app.use("/api/videos", authMiddleware, videosRoutes);
 app.use("/api/publish", authMiddleware, publishingRoutes);
 app.use("/api/export", authMiddleware, publishingRoutes);
 app.use("/api/roleplay", authMiddleware, roleplayRoutes);
+app.use("/api/roleplay/conversations", authMiddleware, conversationsRoutes);
+app.use("/api/roleplay/memories", authMiddleware, memoriesRoutes);
+app.use("/api/roleplay/lorebook", authMiddleware, lorebookRoutes);
+app.use("/api/roleplay/relationships", authMiddleware, relationshipsRoutes);
+app.use("/api/roleplay/scene-state", authMiddleware, sceneStateRoutes);
 app.use("/api/unrestricted", authMiddleware, unrestrictedRoutes);
 app.use("/api/content", authMiddleware, nsfwRoutes);
 app.use("/api/user/keys", authMiddleware, userKeysRoutes);
