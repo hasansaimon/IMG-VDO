@@ -25,23 +25,30 @@
     "worker:dev": "cd apps/worker && npm run dev",
     "worker:start": "cd apps/worker && npm run start"
   },
+  "dependencies": {
+    "next": "^16.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.50.0",
     "prettier": "^3.0.0",
-    "turbo": "^1.10.0",
+    "turbo": "^2.10.12",
     "typescript": "^5.2.0"
   },
   "overrides": {
     "uuid": "^11.1.1",
     "bull": {
       "uuid": "^11.1.1"
-    }
+    },
+    "quill": "^2.0.3"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
-  }
+  },
+  "packageManager": "npm@11.19.0"
 }
