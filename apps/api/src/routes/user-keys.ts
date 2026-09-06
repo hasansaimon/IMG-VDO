@@ -5,15 +5,17 @@
  * providers (OpenAI, Runway, Pika, ElevenLabs, Replicate).
  *
  * Keys are stored in the database and take precedence over server env vars.
+ * NOTE: values are still stored as opaque strings — add AES encryption with
+ * ENCRYPTION_KEY before production multi-tenant use.
  */
 
 import { Router, Response } from "express";
-import { AuthRequest } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { AuthRequest } from "../middleware/auth";
+import { prisma } from "../lib/prisma";
+import { logger } from "../lib/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const SUPPORTED_PROVIDERS = [
   "openai",
@@ -30,31 +32,27 @@ const upsertKeysSchema = z.object({
   ),
 });
 
-// GET /api/user/keys — Get all API keys for the current user
+// GET /api/user/keys — Get configured status for the current user
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
     const userKeys = await prisma.userApiKey.findMany({
       where: { userId },
+      select: { provider: true },
     });
 
-   const keys: Record<string, string | null> = {};
+    const configured = new Set(userKeys.map((k) => k.provider));
+    const keys: Record<string, string | null> = {};
 
-for (const provider of SUPPORTED_PROVIDERS) {
-  const found = userKeys.find(
-    (k: { provider: string }) => k.provider === provider,
-  );
-
-  // Never return the actual API key to the client.
-  // The frontend only needs to know whether a key is configured.
-  keys[provider] = found ? "configured" : null;
-}
+    for (const provider of SUPPORTED_PROVIDERS) {
+      // Never return the actual API key to the client.
+      keys[provider] = configured.has(provider) ? "configured" : null;
+    }
 
     res.json({
       success: true,
       keys,
-      // Show which providers have server-level env vars configured
       serverDefaults: {
         openai: !!process.env.OPENAI_API_KEY,
         runway: !!process.env.RUNWAY_API_KEY,
@@ -64,7 +62,7 @@ for (const provider of SUPPORTED_PROVIDERS) {
       },
     });
   } catch (error) {
-    console.error("Failed to fetch user API keys:", error);
+    logger.error({ err: error }, "Failed to fetch user API keys");
     res.status(500).json({ error: "Failed to fetch API keys" });
   }
 });
@@ -77,12 +75,10 @@ router.put("/", async (req: AuthRequest, res: Response) => {
 
     for (const [provider, key] of Object.entries(data.keys)) {
       if (key === null) {
-        // Delete the key
         await prisma.userApiKey.deleteMany({
           where: { userId, provider },
         });
       } else {
-        // Upsert: create or update
         await prisma.userApiKey.upsert({
           where: {
             userId_provider: { userId, provider },
@@ -100,9 +96,9 @@ router.put("/", async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: error.flatten().fieldErrors });
     }
-    console.error("Failed to update API keys:", error);
+    logger.error({ err: error }, "Failed to update API keys");
     res.status(500).json({ error: "Failed to update API keys" });
   }
 });
