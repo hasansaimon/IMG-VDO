@@ -1,19 +1,17 @@
 /**
  * User API Key Management (BYOK — Bring Your Own Key)
  *
- * Allows authenticated users to manage their own API keys for premium
- * providers (OpenAI, Runway, Pika, ElevenLabs, Replicate).
- *
- * Keys are stored in the database and take precedence over server env vars.
+ * Keys are encrypted at rest with AES-256-GCM when ENCRYPTION_KEY (or JWT_SECRET) is set.
  */
 
 import { Router, Response } from "express";
-import { AuthRequest } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { AuthRequest } from "../middleware/auth";
+import { prisma } from "../lib/prisma";
+import { logger } from "../lib/logger";
+import { encryptSecret } from "../lib/crypto";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const SUPPORTED_PROVIDERS = [
   "openai",
@@ -30,31 +28,25 @@ const upsertKeysSchema = z.object({
   ),
 });
 
-// GET /api/user/keys — Get all API keys for the current user
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
     const userKeys = await prisma.userApiKey.findMany({
       where: { userId },
+      select: { provider: true },
     });
 
-   const keys: Record<string, string | null> = {};
+    const configured = new Set(userKeys.map((k) => k.provider));
+    const keys: Record<string, string | null> = {};
 
-for (const provider of SUPPORTED_PROVIDERS) {
-  const found = userKeys.find(
-    (k: { provider: string }) => k.provider === provider,
-  );
-
-  // Never return the actual API key to the client.
-  // The frontend only needs to know whether a key is configured.
-  keys[provider] = found ? "configured" : null;
-}
+    for (const provider of SUPPORTED_PROVIDERS) {
+      keys[provider] = configured.has(provider) ? "configured" : null;
+    }
 
     res.json({
       success: true,
       keys,
-      // Show which providers have server-level env vars configured
       serverDefaults: {
         openai: !!process.env.OPENAI_API_KEY,
         runway: !!process.env.RUNWAY_API_KEY,
@@ -64,12 +56,11 @@ for (const provider of SUPPORTED_PROVIDERS) {
       },
     });
   } catch (error) {
-    console.error("Failed to fetch user API keys:", error);
+    logger.error({ err: error }, "Failed to fetch user API keys");
     res.status(500).json({ error: "Failed to fetch API keys" });
   }
 });
 
-// PUT /api/user/keys — Upsert API keys for the current user
 router.put("/", async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
@@ -77,18 +68,17 @@ router.put("/", async (req: AuthRequest, res: Response) => {
 
     for (const [provider, key] of Object.entries(data.keys)) {
       if (key === null) {
-        // Delete the key
         await prisma.userApiKey.deleteMany({
           where: { userId, provider },
         });
       } else {
-        // Upsert: create or update
+        const stored = encryptSecret(key);
         await prisma.userApiKey.upsert({
           where: {
             userId_provider: { userId, provider },
           },
-          update: { key, updatedAt: new Date() },
-          create: { userId, provider, key },
+          update: { key: stored, updatedAt: new Date() },
+          create: { userId, provider, key: stored },
         });
       }
     }
@@ -96,13 +86,13 @@ router.put("/", async (req: AuthRequest, res: Response) => {
     res.json({
       success: true,
       message: "API keys updated successfully",
-      note: "User-provided keys take precedence over server environment variables.",
+      note: "Keys are encrypted at rest when ENCRYPTION_KEY is configured.",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: error.flatten().fieldErrors });
     }
-    console.error("Failed to update API keys:", error);
+    logger.error({ err: error }, "Failed to update API keys");
     res.status(500).json({ error: "Failed to update API keys" });
   }
 });
