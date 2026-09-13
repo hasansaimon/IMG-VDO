@@ -6,10 +6,13 @@ import { prisma } from "../lib/prisma";
 const router = Router();
 
 // Only allow admin (you can harden this later)
-const requireAdmin = (req: AuthRequest, res: Response, next: Function) => {
-  // TODO: replace with real admin check
+function requireAdmin(req: AuthRequest, res: Response, next: Function) {
+  // Simple check – replace with real role check later
+  if (!req.userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   next();
-};
+}
 
 const corpusSchema = z.object({
   title: z.string().optional(),
@@ -17,13 +20,13 @@ const corpusSchema = z.object({
   summary: z.string().optional(),
   relationshipType: z.string().optional(),
   actType: z.string().optional(),
-  intensity: z.number().min(1).max(10).default(9),
+  intensity: z.number().min(1).max(10).default(8),
   languageStyle: z.string().optional(),
   tags: z.array(z.string()).optional(),
   characters: z.array(z.string()).optional(),
   source: z.string().optional(),
-  quality: z.number().min(1).max(10).default(7),
-  isApproved: z.boolean().optional().default(false),
+  quality: z.number().min(1).max(10).default(6),
+  isApproved: z.boolean().default(false),
 });
 
 const phraseSchema = z.object({
@@ -36,12 +39,12 @@ const phraseSchema = z.object({
     "orgasm",
     "degradation",
     "affection",
-    "command",
+    "begging",
   ]),
-  intensity: z.number().min(1).max(10).default(8),
+  intensity: z.number().min(1).max(10).default(7),
 });
 
-// ─── Upload Story / Scene ───────────────────────────────────────────────────
+// ─── Upload Story to Corpus ────────────────────────────────────────────────
 router.post("/corpus", requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const data = corpusSchema.parse(req.body);
@@ -73,34 +76,16 @@ router.post("/corpus", requireAdmin, async (req: AuthRequest, res: Response) => 
   }
 });
 
-// ─── Bulk Upload Phrases ────────────────────────────────────────────────────
-router.post("/phrases", requireAdmin, async (req: AuthRequest, res: Response) => {
-  try {
-    const body = z.array(phraseSchema).parse(req.body);
-
-    const created = await prisma.chotiPhrase.createMany({
-      data: body,
-      skipDuplicates: true,
-    });
-
-    res.status(201).json({ count: created.count });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    res.status(500).json({ error: "Failed to create phrases" });
-  }
-});
-
-// ─── List Corpus ────────────────────────────────────────────────────────────
+// ─── List / Search Corpus ──────────────────────────────────────────────────
 router.get("/corpus", requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { approved, relationshipType, limit = "20" } = req.query;
+    const { relationshipType, actType, approved, limit = "20" } = req.query;
 
     const entries = await prisma.chotiCorpus.findMany({
       where: {
-        ...(approved === "true" ? { isApproved: true } : {}),
         ...(relationshipType ? { relationshipType: String(relationshipType) } : {}),
+        ...(actType ? { actType: String(actType) } : {}),
+        ...(approved !== undefined ? { isApproved: approved === "true" } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: Math.min(Number(limit) || 20, 100),
@@ -112,26 +97,75 @@ router.get("/corpus", requireAdmin, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// ─── Approve Entry ──────────────────────────────────────────────────────────
+// ─── Approve / Reject ──────────────────────────────────────────────────────
 router.patch("/corpus/:id/approve", requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const entry = await prisma.chotiCorpus.update({
-      where: { id: req.params.id },
-      data: { isApproved: true },
+    const { id } = req.params;
+    const { isApproved } = req.body;
+
+    const updated = await prisma.chotiCorpus.update({
+      where: { id },
+      data: { isApproved: Boolean(isApproved) },
     });
-    res.json(entry);
+
+    res.json(updated);
   } catch (error) {
-    res.status(500).json({ error: "Failed to approve" });
+    res.status(500).json({ error: "Failed to update approval" });
   }
 });
 
-// ─── Delete ─────────────────────────────────────────────────────────────────
-router.delete("/corpus/:id", requireAdmin, async (req: AuthRequest, res: Response) => {
+// ─── Add Dirty Phrase ──────────────────────────────────────────────────────
+router.post("/phrases", requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.chotiCorpus.delete({ where: { id: req.params.id } });
-    res.json({ success: true });
+    const data = phraseSchema.parse(req.body);
+
+    const phrase = await prisma.chotiPhrase.create({
+      data: {
+        bangla: data.bangla,
+        meaning: data.meaning,
+        category: data.category,
+        intensity: data.intensity,
+      },
+    });
+
+    res.status(201).json(phrase);
   } catch (error) {
-    res.status(500).json({ error: "Failed to delete" });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: "Failed to create phrase" });
+  }
+});
+
+// ─── Bulk Add Phrases ──────────────────────────────────────────────────────
+router.post("/phrases/bulk", requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const items = z.array(phraseSchema).parse(req.body);
+
+    const result = await prisma.chotiPhrase.createMany({
+      data: items,
+      skipDuplicates: true,
+    });
+
+    res.status(201).json({ count: result.count });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: "Failed to bulk create phrases" });
+  }
+});
+
+// ─── List Phrases ──────────────────────────────────────────────────────────
+router.get("/phrases", requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const phrases = await prisma.chotiPhrase.findMany({
+      orderBy: { usageCount: "desc" },
+      take: 100,
+    });
+    res.json(phrases);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch phrases" });
   }
 });
 
