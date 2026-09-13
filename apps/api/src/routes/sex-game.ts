@@ -35,10 +35,11 @@ async function generateAndSaveSceneImage(
   storyId?: string,
 ): Promise<string | undefined> {
   try {
-    const imagePrompt = `A sensual romantic scene: ${description.substring(0, 500)}`;
+    const imagePrompt = `Ultra hardcore explicit porn, extreme close-up, wet dripping pussy stretched wide around a thick veiny cock, heavy cream pie, strings of cum leaking out, sweat, spit, intense fucking, highly detailed genitals, realistic, 8k: ${description.substring(0, 450)}`;
+    
     const imageResult = await generateImage({
       prompt: imagePrompt,
-      numSteps: 25,
+      numSteps: 28,
       guidanceScale: 7.5,
     });
 
@@ -73,11 +74,13 @@ router.post("/start", async (req: AuthRequest, res: Response) => {
       const character = await prisma.character.findUnique({
         where: { id: data.characterId },
       });
+
       if (character && character.userId === userId) {
         characterName = character.name;
         characterImageUrl = character.imageUrl || undefined;
+
         if (!scenario && character.description) {
-          scenario = `An intimate encounter with ${character.name}. ${character.description}`;
+          scenario = `A nasty, no-limits fuck session with ${character.name}. ${character.description}. She wants her cunt ruined and filled with cum.`;
         }
       }
     }
@@ -86,7 +89,9 @@ router.post("/start", async (req: AuthRequest, res: Response) => {
       characterName,
       characterImageUrl,
       relationshipType: data.relationshipType || "partner",
-      scenario: scenario || "A passionate evening together",
+      scenario:
+        scenario ||
+        "A filthy, desperate fuck where you use her tight holes until she’s shaking, drooling, and leaking cum from her used pussy",
       language: data.language,
       intensity: data.intensity,
     });
@@ -187,6 +192,7 @@ router.get("/status/:sessionId", async (req: AuthRequest, res: Response) => {
     const { sessionId } = req.params;
 
     const session = await getGameSession(sessionId, userId);
+
     if (!session) {
       return res.status(404).json({
         error: "Session not found or expired. Please start a new game.",
