@@ -9,7 +9,7 @@ import { generateVideo } from "@img-vdo/video-generator";
 import type { GenerationJobData } from "@img-vdo/shared";
 
 const logger = pino({
-  name: "storybook-worker",
+  name: "img-vdo-worker",
   level: process.env.LOG_LEVEL || "info",
 });
 const prisma = new PrismaClient();
@@ -40,14 +40,12 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
     "Processing video generation job",
   );
 
-  // Update job status to PROCESSING
   await prisma.generationJob.update({
     where: { id: data.jobId },
     data: { status: "PROCESSING", progress: 10 },
   });
 
   try {
-    // Generate the video
     const result = await generateVideo({
       sceneId: data.sceneId,
       imageUrl: data.imageUrl,
@@ -67,7 +65,6 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
       throw new Error("Refusing to persist a data-URL video; storage upload is required");
     }
 
-    // Update job as COMPLETED
     await prisma.generationJob.update({
       where: { id: data.jobId },
       data: {
@@ -79,7 +76,6 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
       },
     });
 
-    // Update scene with video URL
     await prisma.scene.update({
       where: { id: data.sceneId },
       data: {
@@ -95,10 +91,8 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-
     const isFinalAttempt = job.attemptsMade + 1 >= MAX_ATTEMPTS;
 
-    // Keep retryable jobs queued until BullMQ makes the final attempt.
     await prisma.generationJob.update({
       where: { id: data.jobId },
       data: {
@@ -121,8 +115,6 @@ const videoWorker = new Worker<GenerationJobData>("video-generation", async (job
   }
 }, { connection: redisConnection });
 
-// ─── Queue Event Handlers ─────────────────────────────────────────────────────
-
 videoWorker.on("completed", (job) => {
   logger.info({ jobId: job.id }, "Job completed");
 });
@@ -134,8 +126,6 @@ videoWorker.on("failed", (job, err) => {
 videoWorker.on("stalled", (jobId) => {
   logger.warn({ jobId }, "Job stalled");
 });
-
-// ─── Graceful Shutdown ────────────────────────────────────────────────────────
 
 async function shutdown() {
   logger.info("Shutting down worker...");
@@ -149,12 +139,10 @@ async function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-// ─── Start ────────────────────────────────────────────────────────────────────
-
 const PORT = parseInt(process.env.WORKER_PORT || "3002");
 
 logger.info("╔══════════════════════════════════════════════════════╗");
-logger.info("║     Storybook Worker — Background Job Processor     ║");
+logger.info("║     IMG-VDO Worker — Background Job Processor     ║");
 logger.info("╠══════════════════════════════════════════════════════╣");
 logger.info(
   `║  Redis:      ${process.env.REDIS_URL || "redis://localhost:6379"}  ║`,

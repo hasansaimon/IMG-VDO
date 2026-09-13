@@ -1,10 +1,9 @@
 import { Router, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { prisma } from "../lib/prisma";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const createSceneSchema = z.object({
   storyId: z.string(),
@@ -24,7 +23,6 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const data = createSceneSchema.parse(req.body);
 
-    // Verify story ownership
     const story = await prisma.story.findUnique({
       where: { id: data.storyId },
     });
@@ -46,7 +44,6 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Add characters to scene
     if (data.characterIds && data.characterIds.length > 0) {
       await Promise.all(
         data.characterIds.map((characterId) =>

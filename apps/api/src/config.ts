@@ -9,7 +9,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32).optional(),
   JWT_PRIVATE_KEY: z.string().optional(),
   JWT_PUBLIC_KEY: z.string().optional(),
-  JWT_EXPIRE: z.string().default("7d"),
+  JWT_EXPIRE: z.string().default("12h"),
   CORS_ORIGIN: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default("redis://localhost:6379"),
@@ -35,6 +35,7 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().default(60),
   REQUIRE_AGE_VERIFICATION: z.coerce.boolean().default(true),
   MIN_AGE: z.coerce.number().default(18),
+  ENCRYPTION_KEY: z.string().min(16).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -44,7 +45,6 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-// Ensure we have either a strong symmetric secret or a matching RSA keypair
 if (!parsed.data.JWT_SECRET && !(parsed.data.JWT_PRIVATE_KEY && parsed.data.JWT_PUBLIC_KEY)) {
   console.error(
     "Invalid environment configuration: you must provide either JWT_SECRET (>=32 chars) or both JWT_PRIVATE_KEY and JWT_PUBLIC_KEY",
@@ -59,6 +59,7 @@ export const config = {
   jwtPrivateKey: parsed.data.JWT_PRIVATE_KEY,
   jwtPublicKey: parsed.data.JWT_PUBLIC_KEY,
   jwtExpire: parsed.data.JWT_EXPIRE,
+  encryptionKey: parsed.data.ENCRYPTION_KEY,
   cors: {
     origin: parsed.data.CORS_ORIGIN,
     credentials: true,
@@ -70,7 +71,6 @@ export const config = {
     max: parsed.data.RATE_LIMIT_MAX,
   },
   age: {
-    // Production always requires age verification regardless of env flag
     requireVerification:
       parsed.data.NODE_ENV === "production"
         ? true

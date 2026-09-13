@@ -1,10 +1,9 @@
 import { Router, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { prisma } from "../lib/prisma";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const createStoryboardSchema = z.object({
   title: z.string().min(1).max(255),
@@ -17,13 +16,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const storyboards = await prisma.storyboard.findMany({
       where: { userId },
-      include: {
-        characters: true,
-        scenes: true,
-      },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
-
     res.json(storyboards);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch storyboards' });

@@ -44,7 +44,9 @@ export async function isSafeUrl(input: string): Promise<boolean> {
 
   let ips: Array<{ address: string }>;
   try {
-    ips = (await dns.lookup(url.hostname, { all: true })) as Array<{ address: string }>;
+    ips = (await dns.lookup(url.hostname, { all: true })) as Array<{
+      address: string;
+    }>;
   } catch {
     return false;
   }
@@ -58,35 +60,60 @@ export async function isSafeUrl(input: string): Promise<boolean> {
   return true;
 }
 
-export async function fetchSafe(input: string, opts: {
-  timeoutMs?: number;
-  maxBytes?: number;
-} = {}): Promise<Buffer> {
-  const { timeoutMs = 10_000, maxBytes = 25 * 1024 * 1024 } = opts;
+/**
+ * Fetch a remote URL with SSRF protections.
+ * Redirects are followed manually so each hop is re-validated
+ * (avoid redirect-to-private-IP after the initial DNS check).
+ */
+export async function fetchSafe(
+  input: string,
+  opts: {
+    timeoutMs?: number;
+    maxBytes?: number;
+    maxRedirects?: number;
+  } = {},
+): Promise<Buffer> {
+  const {
+    timeoutMs = 10_000,
+    maxBytes = 25 * 1024 * 1024,
+    maxRedirects = 5,
+  } = opts;
 
-  if (!(await isSafeUrl(input))) {
-    throw new Error("URL is not safe to fetch");
-  }
-
+  let current = input;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(input, {
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const contentLength = res.headers.get("content-length");
-    if (contentLength && Number(contentLength) > maxBytes) {
-      throw new Error("Response too large");
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      if (!(await isSafeUrl(current))) {
+        throw new Error("URL is not safe to fetch");
+      }
+
+      const res = await fetch(current, {
+        signal: controller.signal,
+        redirect: "manual",
+      });
+
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get("location");
+        if (!location) throw new Error(`Redirect without Location (${res.status})`);
+        current = new URL(location, current).toString();
+        continue;
+      }
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const contentLength = res.headers.get("content-length");
+      if (contentLength && Number(contentLength) > maxBytes) {
+        throw new Error("Response too large");
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > maxBytes) throw new Error("Response too large");
+      return buf;
     }
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > maxBytes) throw new Error("Response too large");
-    return buf;
+
+    throw new Error("Too many redirects");
   } finally {
     clearTimeout(timer);
   }
 }
-
-

@@ -5,7 +5,6 @@ const PROMPT_INJECTION_PATTERNS = [
   /system\s*:\s*/i,
   /<\s*\|?\s*system\s*\|?\s*>/i,
   /\[\s*INST\s*\]/i,
-  /<</i,
   /\bDAN\b.*\bmode\b/i,
   /disregard\s+(your|the)\s+(rules|guidelines)/i,
 ];

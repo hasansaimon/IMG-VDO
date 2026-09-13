@@ -1,7 +1,7 @@
 {
-  "name": "@storybook/web",
+  "name": "@img-vdo/web",
   "version": "1.0.0",
-  "description": "Frontend for Image-to-Video Storybook",
+  "description": "Frontend for IMG-VDO Image-to-Video Storybook",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -22,7 +22,6 @@
     "date-fns": "^3.6.0",
     "framer-motion": "^11.10.0",
     "next": "^16.3.3",
-    "next-auth": "^4.24.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.4.1",
