@@ -30,21 +30,13 @@ export function sanitizeText(
   value: unknown,
   maxLength: number,
 ): string {
-  if (
-    typeof value !== "string"
-  ) {
+  if (typeof value !== "string") {
     return "";
   }
 
   return value
-    .replace(
-      /[\u0000-\u001F\u007F]/g,
-      " ",
-    )
-    .replace(
-      /\s+/g,
-      " ",
-    )
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
 }
@@ -52,26 +44,21 @@ export function sanitizeText(
 export function sanitizeUrl(
   value: unknown,
 ): string | undefined {
-  if (
-    typeof value !== "string"
-  ) {
+  if (typeof value !== "string") {
     return undefined;
   }
 
-  const valueTrimmed =
-    value.trim();
+  const normalized = value.trim();
 
   if (
-    !valueTrimmed ||
-    valueTrimmed.length >
-      MAX_IMAGE_URL
+    !normalized ||
+    normalized.length > MAX_IMAGE_URL
   ) {
     return undefined;
   }
 
   try {
-    const parsed =
-      new URL(valueTrimmed);
+    const parsed = new URL(normalized);
 
     if (
       parsed.protocol !== "http:" &&
@@ -80,7 +67,7 @@ export function sanitizeUrl(
       return undefined;
     }
 
-    return valueTrimmed;
+    return normalized;
   } catch {
     return undefined;
   }
@@ -103,16 +90,14 @@ export function validateSessionId(
   return (
     typeof value === "string" &&
     value.trim().length > 0 &&
-    value.length <=
-      MAX_SESSION_ID
+    value.length <= MAX_SESSION_ID
   );
 }
 
 export function validateSessionCreateOptions(
   options: SessionCreateOptions = {},
 ): ValidatedSessionCreateOptions {
-  const intensity =
-    options.intensity ?? 7;
+  const intensity = options.intensity ?? 7;
 
   if (
     !Number.isInteger(intensity) ||
@@ -135,33 +120,22 @@ export function validateSessionCreateOptions(
   }
 
   return {
-    characterName:
-      sanitizeText(
-        options.characterName,
-        MAX_CHARACTER_NAME,
-      ),
-
-    characterImageUrl:
-      sanitizeUrl(
-        options.characterImageUrl,
-      ),
-
-    relationshipType:
-      sanitizeText(
-        options.relationshipType,
-        MAX_RELATIONSHIP_TYPE,
-      ),
-
-    scenario:
-      sanitizeText(
-        options.scenario,
-        MAX_SCENARIO,
-      ),
-
-    language:
-      options.language ??
-      "ENGLISH",
-
+    characterName: sanitizeText(
+      options.characterName,
+      MAX_CHARACTER_NAME,
+    ),
+    characterImageUrl: sanitizeUrl(
+      options.characterImageUrl,
+    ),
+    relationshipType: sanitizeText(
+      options.relationshipType,
+      MAX_RELATIONSHIP_TYPE,
+    ),
+    scenario: sanitizeText(
+      options.scenario,
+      MAX_SCENARIO,
+    ),
+    language: options.language ?? "ENGLISH",
     intensity,
   };
 }
