@@ -650,31 +650,27 @@ model VideoCallSession {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-// ─── Bangla Choti Knowledge Base ───────────────────────────────────────────
+ // ─── Bangla Choti Knowledge Base ───────────────────────────────────────────
 
 model ChotiCorpus {
   id          String   @id @default(cuid())
-  
+
   title       String?
-  content     String   @db.Text          // Full story or long scene
+  content     String   @db.Text
   summary     String?  @db.Text
-  
-  // Metadata for better retrieval
-  relationshipType  String?              // e.g. "মা-ছেলে", "বোন-ভাই", "শাশুড়ি-জামাই"
-  actType           String?              // e.g. "oral", "anal", "creampie", "forced", "romantic"
+
+  relationshipType  String?              // "মা-ছেলে", "বোন-ভাই", "শাশুড়ি-জামাই", "খালা-ভাগনে", etc.
+  actType           String?              // "oral", "anal", "creampie", "forced", "romantic", "group"
   intensity         Int      @default(8) // 1-10
   languageStyle     String?              // "pure_bangla", "mixed", "very_vulgar", "literary"
-  
-  tags        String[]                   // ["চোদা", "রস", "দুধ", "গাধা", "নিষিদ্ধ", ...]
-  characters  String[]                   // Character names used
-  
+
+  tags        String[]
+  characters  String[]
+
   source      String?                    // "user_upload", "scraped", "generated", "manual"
-  quality     Int      @default(5)       // 1-10 quality rating
-  
-  embedding   Unsupported("vector")?     // If you use pgvector later
+  quality     Int      @default(5)       // 1-10
   isApproved  Boolean  @default(false)
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -682,17 +678,16 @@ model ChotiCorpus {
   @@index([actType])
   @@index([intensity])
   @@index([isApproved])
-  @@index([tags])
 }
 
 model ChotiPhrase {
   id          String   @id @default(cuid())
-  
-  bangla      String   // The vulgar/sexual phrase
-  meaning     String?  // English meaning (optional)
-  category    String   // "dirty_talk", "body_part", "action", "orgasm", "degradation", "affection"
+
+  bangla      String
+  meaning     String?
+  category    String   // "dirty_talk", "body_part", "action", "orgasm", "degradation", "affection", "begging"
   intensity   Int      @default(7)
-  
+
   usageCount  Int      @default(0)
   createdAt   DateTime @default(now())
 
@@ -702,11 +697,14 @@ model ChotiPhrase {
 
 model ChotiCharacterArchetype {
   id              String   @id @default(cuid())
-  
-  name            String   // e.g. "মা", "বড় বোন", "শাশুড়ি", "চুদা মাগী"
-  description     String   
-  conversation RoleplayConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@index([userId, updatedAt])
-  @@index([conversationId, status])
+  name            String
+  description     String   @db.Text
+  personality     String?  @db.Text
+  sexualBehavior  String?  @db.Text
+  commonDialogues String[]
+  kinks           String[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
