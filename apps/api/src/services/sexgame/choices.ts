@@ -1,4 +1,3 @@
-```typescript
 import type {
   GamePhase,
   SexGameChoice,
@@ -183,57 +182,50 @@ const CHOICES: Record<
   ],
 };
 
-function clamp(
-  value: number,
-  min: number,
-  max: number,
-): number {
-  return Math.min(
-    max,
-    Math.max(min, value),
-  );
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * Fixed low-stamina fallback logic:
+ * 1. Prefer choices the player can actually afford (intensity + stamina).
+ * 2. If none, fall back to the cheapest intensity-compatible choice
+ *    (so the service can still reject with a clear "Not enough stamina").
+ * 3. Absolute last resort: first choice of the phase.
+ */
 export function generateChoicesForPhase(
   phase: GamePhase,
   stamina: number,
   intensity: number,
 ): SexGameChoice[] {
-  const phaseChoices =
-    CHOICES[phase] ?? [];
-  const safeStamina =
-    clamp(stamina, 0, 100);
-  const safeIntensity =
-    clamp(intensity, 1, 10);
-  const available =
-    phaseChoices.filter(
-      (choice) =>
-        choice.intensity <= safeIntensity &&
-        choice.staminaCost <= safeStamina,
-    );
+  const phaseChoices = CHOICES[phase] ?? [];
+  const safeStamina = clamp(stamina, 0, 100);
+  const safeIntensity = clamp(intensity, 1, 10);
+
+  // 1. Ideal: affordable + intensity-compatible
+  const available = phaseChoices.filter(
+    (choice) =>
+      choice.intensity <= safeIntensity &&
+      choice.staminaCost <= safeStamina,
+  );
+
   if (available.length > 0) {
-    return available.map(
-      (choice) => ({ ...choice }),
+    return available.map((c) => ({ ...c }));
+  }
+
+  // 2. Fallback: intensity-compatible, sorted by lowest stamina cost first
+  const intensityCompatible = phaseChoices
+    .filter((choice) => choice.intensity <= safeIntensity)
+    .sort(
+      (a, b) =>
+        a.staminaCost - b.staminaCost || a.intensity - b.intensity,
     );
-  }
-  const intensityCompatible =
-    phaseChoices
-      .filter(
-        (choice) =>
-          choice.intensity <= safeIntensity,
-      )
-      .sort(
-        (a, b) =>
-          a.staminaCost - b.staminaCost ||
-          a.intensity - b.intensity,
-      );
+
   if (intensityCompatible.length > 0) {
-    return [
-      { ...intensityCompatible[0] },
-    ];
+    // Still return only the cheapest one so the service can reject cleanly
+    return [{ ...intensityCompatible[0] }];
   }
-  return phaseChoices.length > 0
-    ? [{ ...phaseChoices[0] }]
-    : [];
+
+  // 3. Absolute last resort
+  return phaseChoices.length > 0 ? [{ ...phaseChoices[0] }] : [];
 }
-```
