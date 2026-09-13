@@ -1,11 +1,3 @@
-//
-// Shared types for the interactive relationship game.
-//
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Game phases
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type GamePhase =
   | "FOREPLAY"
   | "BUILD_UP"
@@ -14,53 +6,22 @@ export type GamePhase =
   | "CLIMAX"
   | "AFTERCARE";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Language
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type GameLanguage =
   | "ENGLISH"
   | "BANGLA";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Relationship / character configuration
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface GameCharacter {
   name: string;
   relationshipType: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Player choice
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface SexGameChoice {
   id: number;
   text: string;
-
-  /**
-   * Relative emotional/game intensity of this choice.
-   * Range: 1-10.
-   */
   intensity: number;
-
-  /**
-   * Stamina consumed by the choice.
-   * Range: 0-100.
-   */
   staminaCost: number;
-
-  /**
-   * Arousal/state progression contributed by the choice.
-   * Range can be constrained by the game engine.
-   */
   arousalGain: number;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// History
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SexGameHistoryEntry {
   round: number;
@@ -69,21 +30,14 @@ export interface SexGameHistoryEntry {
   description: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Session
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface SexGameSession {
   id: string;
   userId: string;
 
-  /**
-   * Optimistic-concurrency version.
-   * Incremented every time the authoritative state changes.
-   */
   version: number;
 
   characterName: string;
+  characterImageUrl?: string;
   relationshipType: string;
   scenario: string;
 
@@ -92,10 +46,6 @@ export interface SexGameSession {
 
   phase: GamePhase;
 
-  /**
-   * Authoritative game state.
-   * AI narration must never modify these directly.
-   */
   arousal: number;
   stamina: number;
 
@@ -108,37 +58,29 @@ export interface SexGameSession {
   lastActivity: Date;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Scene returned to the API/client
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface SexGameScene {
   phase: GamePhase;
-
   arousal: number;
   stamina: number;
   round: number;
 
   description: string;
-
   choices: SexGameChoice[];
 
   climaxAchieved: boolean;
   climaxCount: number;
-
   sessionComplete: boolean;
+
+  version: number;
 
   imageUrl?: string;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Session creation
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface CreateSessionOptions {
   userId: string;
 
   characterName?: string;
+  characterImageUrl?: string;
   relationshipType?: string;
   scenario?: string;
 
@@ -146,28 +88,16 @@ export interface CreateSessionOptions {
   intensity?: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Game action
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface GameActionInput {
   sessionId: string;
   userId: string;
   choiceId: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// API error
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface GameError {
   error: string;
   code?: string;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type GameResult<T> =
   | T
