@@ -1,237 +1,279 @@
-import { Router, Response } from "express";
-import { AuthRequest } from "../middleware/auth";
+import { Router, type Response } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { AuthRequest } from "../middleware/auth";
 import {
   createSession,
   getGameSession,
+  getAvailableChoices,
   processGameAction,
   generateStartScene,
-  getAvailableChoices,
-} from "../services/sexgame/sex-game";
-import { generateImage } from "../utils/ai-provider";
+} from "../services/sexgame/service"; // ← adjust to your actual service filename if needed
 
 const router = Router();
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation
+// ─────────────────────────────────────────────────────────────────────────────
+
 const startGameSchema = z.object({
-  characterName: z.string().trim().min(1).max(100).default("Your Partner"),
-  characterId: z.string().optional(),
-  relationshipType: z.string().trim().max(100).optional(),
+  characterName: z.string().trim().min(1).max(80).optional(),
+  characterId: z.string().trim().min(1).max(120).optional(),
+  characterImageUrl: z.string().url().max(1000).optional(),
+  relationshipType: z.string().trim().max(60).optional(),
   scenario: z.string().trim().max(500).optional(),
-  language: z.enum(["ENGLISH", "BANGLA"]).optional().default("ENGLISH"),
-  intensity: z.number().int().min(1).max(10).optional().default(7),
-  generateImage: z.boolean().optional().default(false),
+  language: z.enum(["ENGLISH", "BANGLA"]).default("ENGLISH"),
+  intensity: z.number().int().min(1).max(10).default(9),
+  generateImage: z.boolean().default(false),
 });
 
-const actSchema = z.object({
-  sessionId: z.string().min(1),
+const actionSchema = z.object({
+  sessionId: z.string().trim().min(1).max(120),
   choiceId: z.number().int().min(1).max(100),
-  generateImage: z.boolean().optional().default(false),
+  version: z.number().int().min(0),
+  generateImage: z.boolean().default(false),
 });
 
-async function generateAndSaveSceneImage(
-  description: string,
-  userId: string,
-  storyId?: string,
-): Promise<string | undefined> {
-  try {
-    const imagePrompt = `Ultra hardcore explicit porn, extreme close-up, wet dripping pussy stretched wide around a thick veiny cock, heavy cream pie, strings of cum leaking out, sweat, spit, intense fucking, highly detailed genitals, realistic, 8k: ${description.substring(0, 450)}`;
-    
-    const imageResult = await generateImage({
-      prompt: imagePrompt,
-      numSteps: 28,
-      guidanceScale: 7.5,
-    });
+const sessionIdSchema = z.object({
+  sessionId: z.string().trim().min(1).max(120),
+});
 
-    const asset = await prisma.mediaAsset.create({
-      data: {
-        url: imageResult.imageBase64,
-        assetType: "IMAGE",
-        label: `Sex game scene - ${new Date().toLocaleString()}`,
-        description: description.substring(0, 500),
-        storyId: storyId || null,
-        userId,
-      },
-    });
-
-    return `/api/media-assets/${asset.id}`;
-  } catch (err) {
-    console.warn("Sex game image generation failed:", err);
-    return undefined;
-  }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/sex-game/start
+// ─────────────────────────────────────────────────────────────────────────────
 
 router.post("/start", async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!;
-    const data = startGameSchema.parse(req.body);
+    const userId = req.userId;
 
-    let characterName = data.characterName;
-    let characterImageUrl: string | undefined;
-    let scenario = data.scenario;
-
-    if (data.characterId) {
-      const character = await prisma.character.findUnique({
-        where: { id: data.characterId },
-      });
-
-      if (character && character.userId === userId) {
-        characterName = character.name;
-        characterImageUrl = character.imageUrl || undefined;
-
-        if (!scenario && character.description) {
-          scenario = `A nasty, no-limits fuck session with ${character.name}. ${character.description}. She wants her cunt ruined and filled with cum.`;
-        }
-      }
+    if (typeof userId !== "string" || !userId.trim()) {
+      return res.status(401).json({ error: "Authentication required." });
     }
 
+    const input = startGameSchema.parse(req.body);
+
+    // Character enrichment can be added later.
+    // For now we pass sanitized values straight to the service.
+
     const session = await createSession(userId, {
-      characterName,
-      characterImageUrl,
-      relationshipType: data.relationshipType || "partner",
+      characterName: input.characterName,
+      characterImageUrl: input.characterImageUrl,
+      relationshipType: input.relationshipType || "partner",
       scenario:
-        scenario ||
+        input.scenario ||
         "A filthy, desperate fuck where you use her tight holes until she’s shaking, drooling, and leaking cum from her used pussy",
-      language: data.language,
-      intensity: data.intensity,
+      language: input.language,
+      intensity: input.intensity,
     });
 
     const scene = await generateStartScene(session);
 
-    if (data.generateImage) {
-      const imageUrl = await generateAndSaveSceneImage(scene.description, userId);
-      if (imageUrl) {
-        scene.imageUrl = imageUrl;
-      }
-    }
-
-    res.json({
+    return res.status(201).json({
       success: true,
       sessionId: session.id,
       session: {
+        id: session.id,
         characterName: session.characterName,
         characterImageUrl: session.characterImageUrl,
         relationshipType: session.relationshipType,
         scenario: session.scenario,
         language: session.language,
         intensity: session.intensity,
-        version: scene.version,
+        phase: session.phase,
+        version: session.version,
         createdAt: session.createdAt,
       },
       game: scene,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    console.error("Sex game start error:", error);
-    res.status(500).json({ error: "Failed to start sex game" });
-  }
-});
-
-router.post("/act", async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.userId!;
-    const data = actSchema.parse(req.body);
-
-    const result = await processGameAction(
-      data.sessionId,
-      userId,
-      data.choiceId,
-    );
-
-    if ("error" in result) {
-      const status =
-        result.error === "Unauthorized"
-          ? 403
-          : result.error.includes("not found")
-            ? 404
-            : 400;
-      return res.status(status).json({ error: result.error });
-    }
-
-    if (data.generateImage) {
-      const imageUrl = await generateAndSaveSceneImage(result.description, userId);
-      if (imageUrl) {
-        result.imageUrl = imageUrl;
-      }
-    }
-
-    const session = await getGameSession(data.sessionId, userId);
-
-    res.json({
-      success: true,
-      sessionId: data.sessionId,
-      session: session
-        ? {
-            characterName: session.characterName,
-            characterImageUrl: session.characterImageUrl,
-            relationshipType: session.relationshipType,
-            scenario: session.scenario,
-            language: session.language,
-            intensity: session.intensity,
-            version: result.version,
-          }
-        : undefined,
-      game: result,
-      timestamp: new Date(),
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    console.error("Sex game act error:", error);
-    res.status(500).json({ error: "Failed to process action" });
-  }
-});
-
-router.get("/status/:sessionId", async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.userId!;
-    const { sessionId } = req.params;
-
-    const session = await getGameSession(sessionId, userId);
-
-    if (!session) {
-      return res.status(404).json({
-        error: "Session not found or expired. Please start a new game.",
+      return res.status(400).json({
+        error: "Invalid request.",
+        details: error.issues,
       });
     }
 
-    const lastEntry = session.history[session.history.length - 1];
-    const choices = getAvailableChoices(session);
+    console.error("[sexgame] start error:", error);
+    return res.status(500).json({ error: "Failed to start the game." });
+  }
+});
 
-    res.json({
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/sex-game/act
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/act", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+
+    if (typeof userId !== "string" || !userId.trim()) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const input = actionSchema.parse(req.body);
+
+    const session = await getGameSession(input.sessionId, userId);
+
+    if (!session) {
+      return res.status(404).json({
+        error: "Session not found or you do not have access to it.",
+      });
+    }
+
+    // Optimistic concurrency check (will later move fully into the service)
+    if (session.version !== input.version) {
+      return res.status(409).json({
+        error: "Session is out of date. Refresh and try again.",
+        version: session.version,
+      });
+    }
+
+    const result = await processGameAction(
+      input.sessionId,
+      userId,
+      input.choiceId,
+    );
+
+    if ("error" in result) {
+      const message = result.error;
+
+      if (message === "Unauthorized") {
+        return res.status(403).json({ error: message });
+      }
+      if (message.includes("not found")) {
+        return res.status(404).json({ error: message });
+      }
+      if (message.includes("changed") || message.includes("version")) {
+        return res.status(409).json({ error: message });
+      }
+
+      return res.status(400).json({ error: message });
+    }
+
+    return res.status(200).json({
+      success: true,
+      sessionId: session.id,
+      game: result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: "Invalid request.",
+        details: error.issues,
+      });
+    }
+
+    console.error("[sexgame] action error:", error);
+    return res.status(500).json({ error: "Failed to process the action." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/sex-game/status/:sessionId
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/status/:sessionId", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+
+    if (typeof userId !== "string" || !userId.trim()) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const parsed = sessionIdSchema.parse(req.params);
+
+    const session = await getGameSession(parsed.sessionId, userId);
+
+    if (!session) {
+      return res.status(404).json({
+        error: "Session not found or you do not have access to it.",
+      });
+    }
+
+    const lastEntry = session.history.at(-1);
+
+    return res.status(200).json({
       success: true,
       sessionId: session.id,
       session: {
+        id: session.id,
         characterName: session.characterName,
         characterImageUrl: session.characterImageUrl,
         relationshipType: session.relationshipType,
         scenario: session.scenario,
         language: session.language,
         intensity: session.intensity,
+        phase: session.phase,
+        version: session.version,
         createdAt: session.createdAt,
+        lastActivity: session.lastActivity,
       },
       game: {
         phase: session.phase,
         arousal: session.arousal,
         stamina: session.stamina,
         round: session.round,
-        description: lastEntry?.description || "",
-        choices,
-        climaxAchieved: false,
+        description: lastEntry?.description ?? "",
+        choices: getAvailableChoices(session),
         climaxCount: session.climaxCount,
-        sessionComplete: session.phase === "AFTERCARE",
+        sessionComplete:
+          session.phase === "AFTERCARE" &&
+          session.history.length > 0 &&
+          lastEntry?.phase === "AFTERCARE",
         version: session.version,
       },
       history: session.history,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Sex game status error:", error);
-    res.status(500).json({ error: "Failed to get session status" });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: "Invalid session ID.",
+        details: error.issues,
+      });
+    }
+
+    console.error("[sexgame] status error:", error);
+    return res.status(500).json({ error: "Failed to retrieve session." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/sex-game/:sessionId  (placeholder)
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.delete("/:sessionId", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+
+    if (typeof userId !== "string" || !userId.trim()) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const parsed = sessionIdSchema.parse(req.params);
+
+    const session = await getGameSession(parsed.sessionId, userId);
+
+    if (!session) {
+      return res.status(404).json({ error: "Session not found." });
+    }
+
+    // Intentionally not implemented yet – wait until the service
+    // exposes a canonical deleteSession function.
+    return res.status(501).json({
+      error: "Session deletion is not enabled yet.",
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: "Invalid session ID.",
+        details: error.issues,
+      });
+    }
+
+    console.error("[sexgame] delete error:", error);
+    return res.status(500).json({ error: "Failed to delete session." });
   }
 });
 
