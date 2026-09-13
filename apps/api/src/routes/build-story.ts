@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { prisma } from "../lib/prisma";
 import {
   analyzeImageForStory,
   generateStoryFromImageAnalyses,
@@ -11,7 +11,6 @@ import {
 } from "../utils/ai-provider";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 type StoryAsset = {
   id: string;
@@ -20,8 +19,6 @@ type StoryAsset = {
   description: string | null;
   assetType: string;
 };
-
-// ─── Validation Schemas ────────────────────────────────────────────────────────
 
 const buildStorySchema = z.object({
   title: z.string().min(1).max(500),
@@ -54,14 +51,11 @@ const buildStorySchema = z.object({
   chotiMode: z.boolean().optional(),
 });
 
-// ─── POST /api/stories/build-from-images ───────────────────────────────────────
-
 router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const data = buildStorySchema.parse(req.body);
 
-    // 1. Fetch all media assets and verify ownership
     const assets: StoryAsset[] = await prisma.mediaAsset.findMany({
       where: {
         id: { in: data.assetIds },
@@ -85,7 +79,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Send initial progress
     res.writeHead(200, {
       "Content-Type": "application/json",
       "Transfer-Encoding": "chunked",
@@ -105,7 +98,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
 
     sendProgress("analyzing", 10, "Analyzing uploaded images...");
 
-    // 2. Analyze each image for story context
     const analyses = [];
     for (let i = 0; i < assets.length; i++) {
       const asset = assets[i];
@@ -129,10 +121,7 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
           `Analyzed image ${i + 1}: ${asset.label || `Image ${i + 1}`}`,
         );
       } catch (error) {
-        console.warn(
-          `Failed to analyze asset ${asset.id}, using fallback:`,
-          error,
-        );
+        console.warn(`Failed to analyze asset ${asset.id}, using fallback:`, error);
         analyses.push({
           imageUrl: asset.url,
           label: asset.label || `Scene ${i + 1}`,
@@ -147,7 +136,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
 
     sendProgress("writing", 45, "Weaving images into a cohesive story...");
 
-    // 3. Generate the story from analyzed images
     const isBanglaChoti =
       data.genre === "BANGLA_INCEST_CHOTI" ||
       data.language === "BANGLA" ||
@@ -155,8 +143,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
 
     let storyContent: string;
     if (isBanglaChoti) {
-      // Re-analyze images with Bangla context (or use existing English analyses if they're already rich enough)
-      // For best results, re-analyze with Bangla prompts
       const banglaAnalyses = analyses.map((a, i) => ({
         imageUrl: a.imageUrl,
         label: a.label || `Scene ${i + 1}`,
@@ -166,16 +152,13 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
         mood: a.mood,
       }));
 
-      storyContent = await generateBanglaStoryFromImageAnalyses(
-        banglaAnalyses,
-        {
-          genre: data.genre,
-          intimacyLevel: data.intimacyLevel,
-          includeActType: data.includeActType,
-          storyDirection: data.storyDirection,
-          characterDescriptions: data.characterDescriptions,
-        },
-      );
+      storyContent = await generateBanglaStoryFromImageAnalyses(banglaAnalyses, {
+        genre: data.genre,
+        intimacyLevel: data.intimacyLevel,
+        includeActType: data.includeActType,
+        storyDirection: data.storyDirection,
+        characterDescriptions: data.characterDescriptions,
+      });
     } else {
       storyContent = await generateStoryFromImageAnalyses(analyses, {
         genre: data.genre,
@@ -188,7 +171,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
 
     sendProgress("saving", 75, "Saving your story...");
 
-    // 4. Save the story
     const story = await prisma.story.create({
       data: {
         title: data.title,
@@ -204,7 +186,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Link media assets to the story
     await Promise.all(
       assets.map((asset, idx) =>
         prisma.mediaAsset.update({
@@ -217,22 +198,14 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
       ),
     );
 
-    // 5. Optionally generate scenes
     let scenes: any[] = [];
     if (data.createScenes) {
       sendProgress("scenes", 85, "Generating video scenes from story...");
-
-      scenes = await generateScenesFromStory(
-        story.id,
-        storyContent,
-        analyses,
-        data,
-      );
+      scenes = await generateScenesFromStory(story.id, storyContent, analyses, data);
     }
 
     sendProgress("complete", 100, "Story created successfully!");
 
-    // 6. Final response
     res.write(
       JSON.stringify({
         type: "complete",
@@ -253,15 +226,12 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
     res.end();
   } catch (error) {
     if (error instanceof z.ZodError) {
-      // Can't use chunked response for validation errors, send as JSON
       return res.status(400).json({ error: error.errors });
     }
     console.error("Build story from images error:", error);
     res.status(500).json({ error: "Failed to build story from images" });
   }
 });
-
-// ─── POST /api/stories/reorder-assets ─────────────────────────────────────────
 
 router.post("/reorder-assets", async (req: AuthRequest, res: Response) => {
   try {
@@ -272,7 +242,6 @@ router.post("/reorder-assets", async (req: AuthRequest, res: Response) => {
       })
       .parse(req.body);
 
-    // Update scene order based on array position
     await Promise.all(
       assetIds.map((id, index) =>
         prisma.mediaAsset.updateMany({
@@ -291,8 +260,6 @@ router.post("/reorder-assets", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// ─── POST /api/stories/build-from-images/simple (no streaming) ────────────────
-
 router.post(
   "/build-from-images/simple",
   async (req: AuthRequest, res: Response) => {
@@ -300,7 +267,6 @@ router.post(
       const userId = req.userId!;
       const data = buildStorySchema.parse(req.body);
 
-      // Fetch assets
       const assets: StoryAsset[] = await prisma.mediaAsset.findMany({
         where: {
           id: { in: data.assetIds },
@@ -315,7 +281,6 @@ router.post(
           .json({ error: "No valid media assets found. Upload images first." });
       }
 
-      // Analyze images
       const analyses = [];
       for (const asset of assets) {
         try {
@@ -345,7 +310,6 @@ router.post(
         }
       }
 
-      // Generate story
       const isBanglaChoti =
         data.genre === "BANGLA_INCEST_CHOTI" ||
         data.language === "BANGLA" ||
@@ -370,7 +334,6 @@ router.post(
         });
       }
 
-      // Save story
       const story = await prisma.story.create({
         data: {
           title: data.title,
@@ -386,7 +349,6 @@ router.post(
         },
       });
 
-      // Link assets
       await Promise.all(
         assets.map((asset, idx) =>
           prisma.mediaAsset.update({
@@ -399,15 +361,9 @@ router.post(
         ),
       );
 
-      // Generate scenes
       let scenes: any[] = [];
       if (data.createScenes) {
-        scenes = await generateScenesFromStory(
-          story.id,
-          storyContent,
-          analyses,
-          data,
-        );
+        scenes = await generateScenesFromStory(story.id, storyContent, analyses, data);
       }
 
       res.json({
@@ -428,8 +384,6 @@ router.post(
   },
 );
 
-// ─── Helper: Generate scenes from story ───────────────────────────────────────
-
 async function generateScenesFromStory(
   storyId: string,
   storyContent: string,
@@ -445,11 +399,9 @@ async function generateScenesFromStory(
 ): Promise<any[]> {
   const scenes = [];
 
-  // If we have image analyses, create a scene per image
   for (let i = 0; i < analyses.length; i++) {
     const analysis = analyses[i];
 
-    // Generate a scene-specific prompt using AI
     let scenePrompt = analysis.description;
     try {
       const promptResult = await generateText({
