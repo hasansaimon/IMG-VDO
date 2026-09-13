@@ -34,6 +34,10 @@ export interface SexGameSession {
   id: string;
   userId: string;
 
+  /**
+   * Optimistic concurrency version.
+   * Incremented whenever authoritative game state changes.
+   */
   version: number;
 
   characterName: string;
