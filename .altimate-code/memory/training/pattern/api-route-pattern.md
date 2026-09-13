@@ -2,13 +2,13 @@
 id: training/pattern/api-route-pattern
 scope: project
 created: 2026-07-07T22:48:37.538Z
-updated: 2026-09-03T01:34:16.281Z
+updated: 2026-09-13T17:33:44.862Z
 tags: ["training","pattern"]
 ---
 
 <!-- training
 kind: pattern
-applied: 32
+applied: 34
 -->
 # API Route Pattern
 Each API route file follows this pattern:
