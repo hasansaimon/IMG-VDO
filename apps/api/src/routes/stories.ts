@@ -1,11 +1,10 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { generateText, getBanglaChotiSystemPrompt } from "../utils/ai-provider";
+import { prisma } from "../lib/prisma";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const generateStorySchema = z.object({
   title: z.string().min(1).max(500),
@@ -40,7 +39,6 @@ router.post("/generate", async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const data = generateStorySchema.parse(req.body);
 
-    // Generate story content via AI — free HuggingFace first, BYOK OpenAI optional
     const generatedContent = await generateStoryContent(
       data.prompt,
       data.genre,
@@ -180,13 +178,11 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Helper functions
 async function generateStoryContent(
   prompt: string,
   genre: string,
   options?: { language?: string; chotiMode?: boolean },
 ): Promise<string> {
-  // Bangla CHOTI mode
   if (
     genre === "BANGLA_INCEST_CHOTI" ||
     options?.language === "BANGLA" ||
