@@ -956,7 +956,16 @@ class DialogueEngine {
     };
   }
 }
+import { buildChotiSystemPrompt } from "../services/choti/choti-knowledge";
 
+const systemPrompt = await buildChotiSystemPrompt({
+  relationshipType: "মা-ছেলে",
+  actType: "creampie",
+  intensity: 9,
+  extraInstructions: "এখন খুব নোংরাভাবে চুদাচুদি চালিয়ে যাও।",
+);
+  }
+}
 // Register and export
 window.DialogueEngine = new DialogueEngine();
 ECS.registerSystem(window.DialogueEngine);
