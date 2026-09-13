@@ -1,15 +1,9 @@
 import crypto from "node:crypto";
 
-import type {
-  SexGameScene,
-  SexGameSession,
-} from "./types";
-
 import {
-  sessionCommit,
-  sessionGet,
-  sessionSet,
-} from "./session";
+  generateScene,
+  generateStartScene as generateOpeningNarrative,
+} from "./scene-generator";
 
 import {
   generateChoicesForPhase,
@@ -20,47 +14,66 @@ import {
 } from "./state-machine";
 
 import {
-  generateScene,
-} from "./scene-generator";
+  getFallbackDescription,
+  getFallbackOpening,
+} from "./fallback";
 
 import {
+  sessionCommit,
+  sessionGet,
+  sessionSet,
+} from "./session";
+
+import {
+  isSessionOwnedBy,
   validateChoiceId,
   validateSessionCreateOptions,
   validateSessionId,
-  isSessionOwnedBy,
 } from "./validators";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Create session
-// ─────────────────────────────────────────────────────────────────────────────
+import type {
+  SexGameChoice,
+  SexGameScene,
+  SexGameSession,
+  CreateSessionOptions,
+} from "./types";
+
+function createSessionId(): string {
+  return (
+    `sexgame_${Date.now()}_` +
+    crypto.randomUUID()
+  );
+}
 
 export async function createSession(
   userId: string,
-  options: {
-    characterName?: string;
-    characterImageUrl?: string;
-    relationshipType?: string;
-    scenario?: string;
-    language?: "ENGLISH" | "BANGLA";
-    intensity?: number;
-  } = {},
+  options: Omit<
+    CreateSessionOptions,
+    "userId"
+  > = {},
 ): Promise<SexGameSession> {
   if (
     typeof userId !== "string" ||
     !userId.trim()
   ) {
-    throw new Error("userId is required");
+    throw new Error(
+      "userId is required",
+    );
   }
 
   const validated =
-    validateSessionCreateOptions(options);
+    validateSessionCreateOptions(
+      options,
+    );
 
   const now = new Date();
 
-  const session: SexGameSession = {
-    id: `sexgame_${Date.now()}_${crypto.randomUUID()}`,
+  const session:
+    SexGameSession = {
+    id: createSessionId(),
 
-    userId: userId.trim(),
+    userId:
+      userId.trim(),
 
     version: 0,
 
@@ -69,9 +82,7 @@ export async function createSession(
       "Partner",
 
     characterImageUrl:
-      typeof options.characterImageUrl === "string"
-        ? options.characterImageUrl.trim().slice(0, 500)
-        : undefined,
+      validated.characterImageUrl,
 
     relationshipType:
       validated.relationshipType ||
@@ -79,7 +90,7 @@ export async function createSession(
 
     scenario:
       validated.scenario ||
-      "An intimate encounter",
+      "An intimate encounter.",
 
     language:
       validated.language,
@@ -104,27 +115,36 @@ export async function createSession(
     lastActivity: now,
   };
 
-  await sessionSet(session);
+  await sessionSet(
+    session,
+  );
 
   return session;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Get session
-// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getGameSession(
   sessionId: string,
   userId: string,
 ): Promise<SexGameSession | null> {
   if (
-    !validateSessionId(sessionId)
+    !validateSessionId(
+      sessionId,
+    )
+  ) {
+    return null;
+  }
+
+  if (
+    typeof userId !== "string" ||
+    !userId.trim()
   ) {
     return null;
   }
 
   const session =
-    await sessionGet(sessionId);
+    await sessionGet(
+      sessionId,
+    );
 
   if (!session) {
     return null;
@@ -142,9 +162,15 @@ export async function getGameSession(
   return session;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Process action
-// ─────────────────────────────────────────────────────────────────────────────
+export function getAvailableChoices(
+  session: SexGameSession,
+): SexGameChoice[] {
+  return generateChoicesForPhase(
+    session.phase,
+    session.stamina,
+    session.intensity,
+  );
+}
 
 export async function processGameAction(
   sessionId: string,
@@ -153,9 +179,10 @@ export async function processGameAction(
 ): Promise<
   SexGameScene | { error: string }
 > {
-  // Validate input
   if (
-    !validateSessionId(sessionId)
+    !validateSessionId(
+      sessionId,
+    )
   ) {
     return {
       error: "Invalid session ID",
@@ -172,7 +199,9 @@ export async function processGameAction(
   }
 
   if (
-    !validateChoiceId(choiceId)
+    !validateChoiceId(
+      choiceId,
+    )
   ) {
     return {
       error: "Invalid choice ID",
@@ -180,11 +209,14 @@ export async function processGameAction(
   }
 
   const session =
-    await sessionGet(sessionId);
+    await sessionGet(
+      sessionId,
+    );
 
   if (!session) {
     return {
-      error: "Session not found or expired",
+      error:
+        "Session not found or expired",
     };
   }
 
@@ -199,25 +231,21 @@ export async function processGameAction(
     };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Get currently available choices
-  // ───────────────────────────────────────────────────────────────────────────
-
   const choices =
-    generateChoicesForPhase(
-      session.phase,
-      session.stamina,
-      session.intensity,
+    getAvailableChoices(
+      session,
     );
 
   const choice =
     choices.find(
-      (item) => item.id === choiceId,
+      (item) =>
+        item.id === choiceId,
     );
 
   if (!choice) {
     return {
-      error: "Choice is not available",
+      error:
+        "Choice is not available",
     };
   }
 
@@ -230,10 +258,6 @@ export async function processGameAction(
     };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Calculate next authoritative state
-  // ───────────────────────────────────────────────────────────────────────────
-
   const transition =
     transitionSession(
       session,
@@ -243,10 +267,6 @@ export async function processGameAction(
   const nextSession =
     transition.session;
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Generate narrative
-  // ───────────────────────────────────────────────────────────────────────────
-
   let description: string;
 
   try {
@@ -254,6 +274,8 @@ export async function processGameAction(
       await generateScene({
         session: nextSession,
         choiceText: choice.text,
+        actionPhase:
+          transition.actionPhase,
       });
   } catch (error) {
     console.error(
@@ -262,19 +284,16 @@ export async function processGameAction(
     );
 
     description =
-      "The scene continues naturally as the two of you remain focused on each other.";
+      getFallbackDescription(
+        nextSession,
+      );
   }
 
-  if (
-    !description.trim()
-  ) {
-    description =
-      "The scene continues naturally as the two of you remain focused on each other.";
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Record history
-  // ───────────────────────────────────────────────────────────────────────────
+  description =
+    description.trim() ||
+    getFallbackDescription(
+      nextSession,
+    );
 
   nextSession.history = [
     ...nextSession.history,
@@ -289,18 +308,12 @@ export async function processGameAction(
         choice.text,
 
       description:
-        description
-          .trim()
-          .slice(0, 500),
+        description.slice(0, 500),
     },
   ].slice(-50);
 
   nextSession.lastActivity =
     new Date();
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Atomic version-aware commit
-  // ───────────────────────────────────────────────────────────────────────────
 
   const commit =
     await sessionCommit(
@@ -309,17 +322,13 @@ export async function processGameAction(
     );
 
   if (
-    commit === "conflict"
+    commit !== "committed"
   ) {
     return {
       error:
-        "This session was updated by another request. Please retry.",
+        "The session changed before this action was saved. Please retry.",
     };
   }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Next choices
-  // ───────────────────────────────────────────────────────────────────────────
 
   const nextChoices =
     transition.sessionComplete
@@ -359,5 +368,96 @@ export async function processGameAction(
 
     version:
       nextSession.version,
+
+    imageUrl:
+      nextSession.characterImageUrl,
+  };
+}
+
+export async function generateStartScene(
+  session: SexGameSession,
+): Promise<SexGameScene> {
+  let description: string;
+
+  try {
+    description =
+      await generateOpeningNarrative(
+        session,
+      );
+  } catch (error) {
+    console.error(
+      "[sexgame] opening scene generation failed:",
+      error,
+    );
+
+    description =
+      getFallbackOpening(
+        session,
+      );
+  }
+
+  description =
+    description.trim() ||
+    getFallbackOpening(
+      session,
+    );
+
+  const nextSession:
+    SexGameSession = {
+    ...session,
+
+    history: [
+      ...session.history,
+      {
+        phase: "FOREPLAY",
+        round: 0,
+        choice: "Session started",
+        description:
+          description.slice(0, 500),
+      },
+    ].slice(-50),
+
+    lastActivity:
+      new Date(),
+  };
+
+  await sessionSet(
+    nextSession,
+  );
+
+  return {
+    phase:
+      nextSession.phase,
+
+    arousal:
+      nextSession.arousal,
+
+    stamina:
+      nextSession.stamina,
+
+    round:
+      nextSession.round,
+
+    description,
+
+    choices:
+      generateChoicesForPhase(
+        nextSession.phase,
+        nextSession.stamina,
+        nextSession.intensity,
+      ),
+
+    climaxAchieved: false,
+
+    climaxCount:
+      nextSession.climaxCount,
+
+    sessionComplete: false,
+
+    version:
+      nextSession.version,
+
+    imageUrl:
+      nextSession.characterImageUrl,
   };
 }
