@@ -46,7 +46,7 @@ const registerSchema = z.object({
     .boolean()
     .refine(
       (v) => v === true,
-      "You must acknowledge this platform contains adult (18+) content",
+      "You must confirm you are 18+ and want full access to unrestricted hardcore sexual content, including explicit fucking, cum, and graphic adult material",
     ),
   firstName: z.string().max(100).optional(),
   lastName: z.string().max(100).optional(),
@@ -136,7 +136,7 @@ router.get("/legal", (_req: Request, res: Response) => {
       terms: "By using this service you agree to the Terms of Service.",
       privacy: "By using this service you agree to the Privacy Policy.",
       adultContent:
-        "This platform hosts and generates adult (18+) sexual content. You confirm you are of legal age in your jurisdiction and want access to unrestricted adult material.",
+        "This platform contains and generates unrestricted hardcore adult content: explicit sex, detailed fucking, cum, oral, anal, and graphic sexual acts. You confirm you are of legal age and want full access to this material.",
     },
   });
 });
@@ -144,12 +144,10 @@ router.get("/legal", (_req: Request, res: Response) => {
 router.post("/register", async (req: Request, res: Response) => {
   try {
     const data = registerSchema.parse(req.body);
-
     const dob = parseDateOfBirth(data.dateOfBirth);
     if (!dob) {
       return res.status(400).json({ error: "Invalid date of birth" });
     }
-
     if (
       (config.age.requireVerification || config.isProduction) &&
       !isAtLeastAge(dob, config.age.min)
@@ -160,23 +158,19 @@ router.post("/register", async (req: Request, res: Response) => {
         minAge: config.age.min,
       });
     }
-
     const existing = await prisma.user.findFirst({
       where: {
         OR: [{ email: data.email }, { username: data.username }],
       },
       select: { id: true },
     });
-
     if (existing) {
       return res
         .status(409)
         .json({ error: "Email or username already in use" });
     }
-
     const hashedPassword = await bcrypt.hash(data.password, 12);
     const now = new Date();
-
     const user = await prisma.user.create({
       data: {
         email: data.email,
@@ -201,12 +195,9 @@ router.post("/register", async (req: Request, res: Response) => {
         ...consentSelect,
       },
     });
-
     const token = signToken(user.id);
     const consent = evaluateConsent(user);
-
     logger.info({ userId: user.id }, "user registered");
-
     res.status(201).json({
       user: {
         id: user.id,
@@ -233,7 +224,6 @@ router.post("/register", async (req: Request, res: Response) => {
 router.post("/login", loginLimiter, async (req: Request, res: Response) => {
   try {
     const data = loginSchema.parse(req.body);
-
     const lockKey = `login:${data.email}`;
     const lock = isLocked(lockKey);
     if (lock.locked) {
@@ -242,7 +232,6 @@ router.post("/login", loginLimiter, async (req: Request, res: Response) => {
         retryAfter: Math.ceil((lock.until - Date.now()) / 1000),
       });
     }
-
     const user = await prisma.user.findUnique({
       where: { email: data.email },
       select: {
@@ -256,29 +245,22 @@ router.post("/login", loginLimiter, async (req: Request, res: Response) => {
         ...consentSelect,
       },
     });
-
     if (!user) {
       recordFailure(lockKey);
       return res.status(401).json({ error: "Invalid email or password" });
     }
-
     if (user.status !== "ACTIVE") {
       return res.status(403).json({ error: "Account not active" });
     }
-
     const valid = await bcrypt.compare(data.password, user.password);
     if (!valid) {
       recordFailure(lockKey);
       return res.status(401).json({ error: "Invalid email or password" });
     }
-
     clearFailures(lockKey);
-
     const consent = evaluateConsent(user);
     const token = signToken(user.id);
-
     logger.info({ userId: user.id, consentComplete: consent.complete }, "user logged in");
-
     res.json({
       user: {
         id: user.id,
@@ -327,7 +309,6 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const data = consentSchema.parse(req.body);
-
       const existing = await prisma.user.findUnique({
         where: { id: req.userId! },
         select: { id: true, status: true, ...consentSelect },
@@ -335,10 +316,8 @@ router.post(
       if (!existing || existing.status !== "ACTIVE") {
         return res.status(404).json({ error: "User not found" });
       }
-
       const update: Record<string, unknown> = {};
       const now = new Date();
-
       if (data.dateOfBirth) {
         const dob = parseDateOfBirth(data.dateOfBirth);
         if (!dob) {
@@ -356,7 +335,6 @@ router.post(
         }
         update.dateOfBirth = dob;
       }
-
       if (data.acceptedTerms === true) {
         update.termsAcceptedAt = now;
         update.termsVersion = LEGAL_VERSIONS.terms;
@@ -369,25 +347,21 @@ router.post(
         update.adultContentAcknowledgedAt = now;
         update.adultContentVersion = LEGAL_VERSIONS.adultContent;
       }
-
       if (Object.keys(update).length === 0) {
         return res.status(400).json({
           error: "Provide dateOfBirth and/or acceptance flags to update",
         });
       }
-
       const user = await prisma.user.update({
         where: { id: req.userId! },
         data: update,
         select: consentSelect,
       });
-
       const consent = evaluateConsent(user);
       logger.info(
         { userId: req.userId, complete: consent.complete, missing: consent.missing },
         "consent updated",
       );
-
       res.json({ success: true, consent });
     } catch (err) {
       if (err instanceof z.ZodError) {
