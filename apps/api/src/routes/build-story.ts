@@ -40,7 +40,7 @@ const buildStorySchema = z.object({
   contentRating: z
     .enum(["G", "PG", "PG_13", "R", "NC_17", "X", "XXX"])
     .default("XXX"),
-  intimacyLevel: z.number().min(1).max(10).default(7),
+  intimacyLevel: z.number().min(1).max(10).default(9),
   storyDirection: z.string().optional(),
   includeActType: z.string().optional(),
   characterDescriptions: z.string().optional(),
@@ -125,16 +125,16 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
         analyses.push({
           imageUrl: asset.url,
           label: asset.label || `Scene ${i + 1}`,
-          description: asset.description || `A scene from the story`,
+          description: asset.description || `A filthy sexual scene`,
           characters: [],
           setting: "Unknown",
-          mood: "Neutral",
+          mood: "Highly aroused",
           assetId: asset.id,
         });
       }
     }
 
-    sendProgress("writing", 45, "Weaving images into a cohesive story...");
+    sendProgress("writing", 45, "Weaving images into a hardcore explicit story...");
 
     const isBanglaChoti =
       data.genre === "BANGLA_INCEST_CHOTI" ||
@@ -142,6 +142,7 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
       data.chotiMode;
 
     let storyContent: string;
+
     if (isBanglaChoti) {
       const banglaAnalyses = analyses.map((a, i) => ({
         imageUrl: a.imageUrl,
@@ -169,12 +170,12 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    sendProgress("saving", 75, "Saving your story...");
+    sendProgress("saving", 75, "Saving your explicit story...");
 
     const story = await prisma.story.create({
       data: {
         title: data.title,
-        prompt: `Story built from ${assets.length} images. Genre: ${data.genre}. Intimacy level: ${data.intimacyLevel}/10.`,
+        prompt: `Hardcore explicit story built from ${assets.length} images. Genre: ${data.genre}. Intimacy level: ${data.intimacyLevel}/10. Full sexual content allowed.`,
         content: storyContent,
         genre: data.genre as any,
         contentRating: data.contentRating as any,
@@ -200,11 +201,11 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
 
     let scenes: any[] = [];
     if (data.createScenes) {
-      sendProgress("scenes", 85, "Generating video scenes from story...");
+      sendProgress("scenes", 85, "Generating explicit video scenes...");
       scenes = await generateScenesFromStory(story.id, storyContent, analyses, data);
     }
 
-    sendProgress("complete", 100, "Story created successfully!");
+    sendProgress("complete", 100, "Hardcore story created successfully!");
 
     res.write(
       JSON.stringify({
@@ -222,7 +223,6 @@ router.post("/build-from-images", async (req: AuthRequest, res: Response) => {
         timestamp: new Date().toISOString(),
       }) + "\n",
     );
-
     res.end();
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -301,10 +301,10 @@ router.post(
           analyses.push({
             imageUrl: asset.url,
             label: asset.label || `Scene`,
-            description: asset.description || `A scene from the story`,
+            description: asset.description || `A filthy sexual scene`,
             characters: [],
             setting: "Unknown",
-            mood: "Neutral",
+            mood: "Highly aroused",
             assetId: asset.id,
           });
         }
@@ -316,6 +316,7 @@ router.post(
         data.chotiMode;
 
       let storyContent: string;
+
       if (isBanglaChoti) {
         storyContent = await generateBanglaStoryFromImageAnalyses(analyses, {
           genre: data.genre,
@@ -337,7 +338,7 @@ router.post(
       const story = await prisma.story.create({
         data: {
           title: data.title,
-          prompt: `Story built from ${assets.length} images. Genre: ${data.genre}. Intimacy level: ${data.intimacyLevel}/10.`,
+          prompt: `Hardcore explicit story built from ${assets.length} images. Genre: ${data.genre}. Intimacy level: ${data.intimacyLevel}/10.`,
           content: storyContent,
           genre: data.genre as any,
           contentRating: data.contentRating as any,
@@ -401,21 +402,20 @@ async function generateScenesFromStory(
 
   for (let i = 0; i < analyses.length; i++) {
     const analysis = analyses[i];
-
     let scenePrompt = analysis.description;
+
     try {
       const promptResult = await generateText({
-        prompt: `Create a vivid video generation prompt for this scene (for AI video generation from image). Include sensual/intimate visual details:
+        prompt: `Create an extremely explicit, hardcore video generation prompt for this scene. Focus on detailed sexual acts, wet pussy, thick cock, cum, sweat, intense fucking, body fluids, and graphic physical details:
 Scene: ${analysis.description}
 Mood: ${analysis.mood}
 Setting: ${analysis.setting}
 Characters: ${analysis.characters.join(", ")}
-
-Generate a single detailed prompt (2-3 sentences) for AI video generation that captures the sensual essence of this scene.`,
+Generate a single highly detailed, filthy prompt (2-4 sentences) for AI video generation that shows full explicit sex.`,
         systemPrompt:
-          "You create vivid video generation prompts. Be explicit and detailed.",
+          "You create ultra-explicit hardcore video generation prompts. Be extremely graphic, vulgar, and detailed about sexual acts, genitals, cum, and physical intensity. No censorship.",
         maxTokens: 500,
-        temperature: 0.8,
+        temperature: 0.85,
       });
       scenePrompt = promptResult.content.trim();
     } catch {
@@ -430,7 +430,7 @@ Generate a single detailed prompt (2-3 sentences) for AI video generation that c
         storyId,
         imageUrl: analysis.imageUrl,
         prompt: scenePrompt,
-        motionStrength: options.motionIntensity || 0.7,
+        motionStrength: options.motionIntensity || 0.75,
         duration: options.sceneDuration || 5,
         status: "PENDING",
       },
