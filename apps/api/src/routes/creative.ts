@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { prisma } from "../lib/prisma";
 import {
   generateText,
   generateTts,
@@ -10,7 +10,6 @@ import {
 } from "../utils/ai-provider";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const enhanceStorySchema = z.object({
   storyId: z.string(),
@@ -115,7 +114,6 @@ router.post("/generate-scenes", async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Story not found" });
     }
 
-    // Use AI to generate proper scene descriptions from story content
     const sceneDescriptions = await generateSceneDescriptions(
       story.content,
       data.numberOfScenes,
@@ -225,7 +223,6 @@ router.post("/character-voice", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Helper: Generate scene descriptions using AI
 async function generateSceneDescriptions(
   content: string,
   count: number,
@@ -243,7 +240,6 @@ async function generateSceneDescriptions(
   try {
     return JSON.parse(result.content);
   } catch {
-    // Fallback: generate basic scene descriptions
     return Array.from({ length: count }, (_, i) => ({
       title: `Scene ${i + 1}`,
       description: `${style.charAt(0).toUpperCase() + style.slice(1)} scene ${i + 1} from the story`,
@@ -252,7 +248,6 @@ async function generateSceneDescriptions(
   }
 }
 
-// Helper: Enhance story content via AI
 async function enhanceStoryContent(
   content: string,
   options: any,
@@ -272,7 +267,6 @@ async function enhanceStoryContent(
   const prompt =
     aspectPrompts[options.aspect] || aspectPrompts.expand_narrative;
 
-  // For Bangla CHOTI conversion, use the Bangla CHOTI system prompt
   if (options.aspect === "convert_to_bangla_choti") {
     const result = await generateText({
       prompt,
