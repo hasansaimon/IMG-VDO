@@ -3,13 +3,9 @@ import type {
   SexGameChoice,
 } from "./types";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Choice definitions
-// ─────────────────────────────────────────────────────────────────────────────
-
 const CHOICES: Record<
   GamePhase,
-  SexGameChoice[]
+  readonly SexGameChoice[]
 > = {
   FOREPLAY: [
     {
@@ -191,9 +187,16 @@ const CHOICES: Record<
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public API
-// ─────────────────────────────────────────────────────────────────────────────
+function clamp(
+  value: number,
+  min: number,
+  max: number,
+): number {
+  return Math.min(
+    max,
+    Math.max(min, value),
+  );
+}
 
 export function generateChoicesForPhase(
   phase: GamePhase,
@@ -203,66 +206,44 @@ export function generateChoicesForPhase(
   const phaseChoices =
     CHOICES[phase] ?? [];
 
-  const safeStamina = Math.max(
-    0,
-    Math.min(100, stamina),
-  );
+  const safeStamina =
+    clamp(stamina, 0, 100);
 
-  const safeIntensity = Math.max(
-    1,
-    Math.min(10, intensity),
-  );
+  const safeIntensity =
+    clamp(intensity, 1, 10);
 
   const available =
     phaseChoices.filter(
       (choice) =>
-        choice.intensity <=
-          safeIntensity &&
-        choice.staminaCost <=
-          safeStamina,
+        choice.intensity <= safeIntensity &&
+        choice.staminaCost <= safeStamina,
     );
 
-  // Normal case.
   if (available.length > 0) {
-    return available;
+    return available.map(
+      (choice) => ({ ...choice }),
+    );
   }
 
-  // When stamina is too low, return the least
-  // demanding option that is compatible with
-  // the configured intensity.
   const intensityCompatible =
     phaseChoices
       .filter(
         (choice) =>
-          choice.intensity <=
-          safeIntensity,
+          choice.intensity <= safeIntensity,
       )
       .sort(
         (a, b) =>
-          a.staminaCost -
-          b.staminaCost,
+          a.staminaCost - b.staminaCost ||
+          a.intensity - b.intensity,
       );
 
-  if (
-    intensityCompatible.length > 0
-  ) {
+  if (intensityCompatible.length > 0) {
     return [
-      intensityCompatible[0],
+      { ...intensityCompatible[0] },
     ];
   }
 
-  // Absolute fallback.
-  const safest =
-    [...phaseChoices]
-      .sort(
-        (a, b) =>
-          a.intensity -
-          b.intensity ||
-          a.staminaCost -
-          b.staminaCost,
-      )[0];
-
-  return safest
-    ? [safest]
+  return phaseChoices.length > 0
+    ? [{ ...phaseChoices[0] }]
     : [];
 }
