@@ -1,11 +1,10 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { Queue } from "bullmq";
 import { z } from "zod";
+import { prisma } from "../lib/prisma";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ─── Bull Queue for Video Generation ──────────────────────────────────────────
 
@@ -44,7 +43,6 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const data = generateVideoSchema.parse(req.body);
 
-    // Verify scene ownership
     const scene = await prisma.scene.findUnique({
       where: { id: data.sceneId },
       include: { story: true },
@@ -54,13 +52,11 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Scene not found" });
     }
 
-    // Update scene status
     await prisma.scene.update({
       where: { id: data.sceneId },
       data: { status: "GENERATING_VIDEO" },
     });
 
-    // Create generation job in database
     const job = await prisma.generationJob.create({
       data: {
         sceneId: data.sceneId,
@@ -77,7 +73,6 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Add to Bull queue for async processing
     await videoQueue.add(
       "video-generation",
       {
@@ -131,7 +126,6 @@ router.get("/job/:jobId", async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // Also check Bull queue for real-time status
     let queueStatus = null;
     try {
       const bullJob = await videoQueue.getJob(jobId);
