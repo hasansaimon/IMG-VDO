@@ -83,24 +83,12 @@ export function transitionSession(
   const nextSession:
     SexGameSession = {
     ...source,
-
-    arousal:
-      nextArousal,
-
-    stamina:
-      nextStamina,
-
-    round:
-      source.round + 1,
-
-    version:
-      source.version + 1,
-
-    lastActivity:
-      new Date(),
-
-    history:
-      [...source.history],
+    arousal: nextArousal,
+    stamina: nextStamina,
+    round: source.round + 1,
+    version: source.version + 1,
+    lastActivity: new Date(),
+    history: [...source.history],
   };
 
   let climaxAchieved = false;

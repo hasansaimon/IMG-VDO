@@ -36,7 +36,7 @@ export interface SexGameSession {
 
   /**
    * Optimistic concurrency version.
-   * Incremented whenever authoritative game state changes.
+   * Incremented whenever authoritative state changes.
    */
   version: number;
 
