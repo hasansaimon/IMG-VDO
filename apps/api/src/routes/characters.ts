@@ -7,12 +7,19 @@ const router = Router();
 
 const createCharacterSchema = z.object({
   name: z.string().min(1).max(255),
-  description: z.string().optional(),
+  description: z.string().max(2000).optional(), // Can include detailed sexual description
   imageUrl: z.string().url(),
   personality: z.record(z.any()).optional(),
-  appearance: z.record(z.any()).optional(),
-  background: z.string().optional(),
+  appearance: z.record(z.any()).optional(), // Detailed body, tits, ass, pussy, cock, etc.
+  background: z.string().max(3000).optional(),
   traits: z.array(z.string()).optional(),
+  // Explicit adult fields
+  sexualRole: z.enum(["dominant", "submissive", "switch", "prey", "predator", "slut", "other"]).optional(),
+  kinks: z.array(z.string()).optional(), // e.g. ["creampie", "deepthroat", "anal", "breeding"]
+  bodyDetails: z.string().max(1500).optional(), // Explicit physical description
+  voiceStyle: z.string().max(500).optional(), // How they talk during sex
+  limits: z.array(z.string()).optional(),
+  preferredActs: z.array(z.string()).optional(),
 });
 
 // GET /api/characters
@@ -44,6 +51,8 @@ router.post("/", async (req: AuthRequest, res: Response) => {
         appearance: data.appearance ? JSON.stringify(data.appearance) : null,
         traits: data.traits ? JSON.stringify(data.traits) : null,
         background: data.background,
+        // Store extra adult fields inside personality/appearance or as JSON if your schema supports it
+        // If your Prisma schema has extra columns, map them here
         userId,
       },
     });
@@ -104,6 +113,9 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
 
     res.json(updated);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
     res.status(500).json({ error: "Failed to update character" });
   }
 });
