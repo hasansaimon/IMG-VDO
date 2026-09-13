@@ -1,34 +1,90 @@
-import type { SexGameSession } from "./sex-game";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Limits
-// ─────────────────────────────────────────────────────────────────────────────
+import type {
+  SexGameSession,
+} from "./types";
 
 const MAX_CHARACTER_NAME = 80;
 const MAX_RELATIONSHIP_TYPE = 60;
 const MAX_SCENARIO = 500;
+const MAX_IMAGE_URL = 1000;
+const MAX_SESSION_ID = 120;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Basic sanitization
-// ─────────────────────────────────────────────────────────────────────────────
+export interface SessionCreateOptions {
+  characterName?: string;
+  characterImageUrl?: string;
+  relationshipType?: string;
+  scenario?: string;
+  language?: "ENGLISH" | "BANGLA";
+  intensity?: number;
+}
+
+export interface ValidatedSessionCreateOptions {
+  characterName: string;
+  characterImageUrl?: string;
+  relationshipType: string;
+  scenario: string;
+  language: "ENGLISH" | "BANGLA";
+  intensity: number;
+}
 
 export function sanitizeText(
   value: unknown,
   maxLength: number,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
   return value
-    .replace(/\u0000/g, "")
+    .replace(
+      /[\u0000-\u001F\u007F]/g,
+      " ",
+    )
+    .replace(
+      /\s+/g,
+      " ",
+    )
     .trim()
     .slice(0, maxLength);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Choice validation
-// ─────────────────────────────────────────────────────────────────────────────
+export function sanitizeUrl(
+  value: unknown,
+): string | undefined {
+  if (
+    typeof value !== "string"
+  ) {
+    return undefined;
+  }
+
+  const valueTrimmed =
+    value.trim();
+
+  if (
+    !valueTrimmed ||
+    valueTrimmed.length >
+      MAX_IMAGE_URL
+  ) {
+    return undefined;
+  }
+
+  try {
+    const parsed =
+      new URL(valueTrimmed);
+
+    if (
+      parsed.protocol !== "http:" &&
+      parsed.protocol !== "https:"
+    ) {
+      return undefined;
+    }
+
+    return valueTrimmed;
+  } catch {
+    return undefined;
+  }
+}
 
 export function validateChoiceId(
   value: unknown,
@@ -41,30 +97,22 @@ export function validateChoiceId(
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Session creation validation
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface SessionCreateOptions {
-  characterName?: string;
-  relationshipType?: string;
-  scenario?: string;
-  language?: "ENGLISH" | "BANGLA";
-  intensity?: number;
-}
-
-export interface ValidatedSessionCreateOptions {
-  characterName: string;
-  relationshipType: string;
-  scenario: string;
-  language: "ENGLISH" | "BANGLA";
-  intensity: number;
+export function validateSessionId(
+  value: unknown,
+): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.length <=
+      MAX_SESSION_ID
+  );
 }
 
 export function validateSessionCreateOptions(
   options: SessionCreateOptions = {},
 ): ValidatedSessionCreateOptions {
-  const intensity = options.intensity ?? 7;
+  const intensity =
+    options.intensity ?? 7;
 
   if (
     !Number.isInteger(intensity) ||
@@ -87,30 +135,36 @@ export function validateSessionCreateOptions(
   }
 
   return {
-    characterName: sanitizeText(
-      options.characterName,
-      MAX_CHARACTER_NAME,
-    ),
+    characterName:
+      sanitizeText(
+        options.characterName,
+        MAX_CHARACTER_NAME,
+      ),
 
-    relationshipType: sanitizeText(
-      options.relationshipType,
-      MAX_RELATIONSHIP_TYPE,
-    ),
+    characterImageUrl:
+      sanitizeUrl(
+        options.characterImageUrl,
+      ),
 
-    scenario: sanitizeText(
-      options.scenario,
-      MAX_SCENARIO,
-    ),
+    relationshipType:
+      sanitizeText(
+        options.relationshipType,
+        MAX_RELATIONSHIP_TYPE,
+      ),
 
-    language: options.language ?? "ENGLISH",
+    scenario:
+      sanitizeText(
+        options.scenario,
+        MAX_SCENARIO,
+      ),
+
+    language:
+      options.language ??
+      "ENGLISH",
 
     intensity,
   };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Session ownership
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function isSessionOwnedBy(
   session: SexGameSession,
@@ -118,21 +172,7 @@ export function isSessionOwnedBy(
 ): boolean {
   return (
     typeof userId === "string" &&
-    userId.length > 0 &&
-    session.userId === userId
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Session ID validation
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function validateSessionId(
-  value: unknown,
-): value is string {
-  return (
-    typeof value === "string" &&
-    value.trim().length > 0 &&
-    value.length <= 100
+    userId.trim().length > 0 &&
+    session.userId === userId.trim()
   );
 }
