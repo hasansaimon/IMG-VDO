@@ -37,5 +37,11 @@
     "rate-limit-redis": "^6.0.1",
     "redis": "^4.6.11",
     "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.2.0",
+    "vitest": "^1.6.1"
   }
 }

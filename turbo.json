@@ -15,6 +15,7 @@
       "outputs": []
     },
     "type-check": {
+      "dependsOn": ["^build"],
       "cache": true,
       "outputs": []
     },
