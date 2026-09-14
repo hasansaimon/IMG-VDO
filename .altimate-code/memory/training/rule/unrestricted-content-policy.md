@@ -2,13 +2,13 @@
 id: training/rule/unrestricted-content-policy
 scope: project
 created: 2026-07-07T22:48:40.272Z
-updated: 2026-09-14T05:19:35.759Z
+updated: 2026-09-14T05:45:03.067Z
 tags: ["training","rule"]
 ---
 
 <!-- training
 kind: rule
-applied: 50
+applied: 56
 -->
 # Unrestricted Content Policy
 This platform operates in UNRESTRICTED mode. Every route handler should:
