@@ -2,13 +2,13 @@
 id: training/standard/prisma-migration-workflow
 scope: project
 created: 2026-07-07T22:48:41.429Z
-updated: 2026-09-14T05:45:03.067Z
+updated: 2026-09-14T06:01:29.606Z
 tags: ["training","standard"]
 ---
 
 <!-- training
 kind: standard
-applied: 56
+applied: 60
 -->
 # Prisma Migration Workflow
 - Always use `npx prisma migrate dev --name <description>` for schema changes
