@@ -90,7 +90,7 @@ export async function createSession(
 
     scenario:
       validated.scenario ||
-      "An intimate encounter.",
+      "A filthy night of hard fucking.",
 
     language:
       validated.language,
