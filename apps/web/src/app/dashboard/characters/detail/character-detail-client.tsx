@@ -63,11 +63,9 @@ export default function CharacterDetailPage() {
       setImageUrl(c.imageUrl || "");
       setImagePreview(c.imageUrl || null);
 
-      // Parse traits
       const traits = c.traits ? parseJsonField(c.traits) : [];
       setTraitsInput(Array.isArray(traits) ? traits.join(", ") : "");
 
-      // Parse personality
       const personality = c.personality ? parseJsonField(c.personality) : {};
       if (typeof personality === "object" && !Array.isArray(personality)) {
         setPersonalityTraits(personality as Record<string, string>);
@@ -99,22 +97,18 @@ export default function CharacterDetailPage() {
 
     try {
       const token = localStorage.getItem("token");
-      const base64 = await new Promise<string>((resolve) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result as string);
-        fr.readAsDataURL(file);
-      });
+      const form = new FormData();
+      form.append("file", file);
+      form.append("label", `Character: ${name || "character"}`);
+      form.append("description", `Character image for ${name}`);
 
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/media-assets`,
+        form,
         {
-          url: base64,
-          assetType: "IMAGE",
-          label: `Character: ${name || "character"}`,
-          description: `Character image for ${name}`,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
       );
 
@@ -276,7 +270,6 @@ export default function CharacterDetailPage() {
 
         <div className="bg-gray-800/50 backdrop-blur border border-purple-500/20 rounded-2xl p-8">
           <form onSubmit={handleSave} className="space-y-6">
-            {/* Image Upload */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 Character Image
@@ -322,7 +315,6 @@ export default function CharacterDetailPage() {
               </div>
             </div>
 
-            {/* Name */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 Character Name *
@@ -336,7 +328,6 @@ export default function CharacterDetailPage() {
               />
             </div>
 
-            {/* Description */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 Description
@@ -349,7 +340,6 @@ export default function CharacterDetailPage() {
               />
             </div>
 
-            {/* Background */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 Background Story
@@ -362,7 +352,6 @@ export default function CharacterDetailPage() {
               />
             </div>
 
-            {/* Traits */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 Traits (comma-separated)
@@ -376,7 +365,6 @@ export default function CharacterDetailPage() {
               />
             </div>
 
-            {/* Personality */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 Personality Details
@@ -429,7 +417,6 @@ export default function CharacterDetailPage() {
               </div>
             </div>
 
-            {/* Save Button */}
             <button
               type="submit"
               disabled={saving || !name.trim()}
@@ -443,4 +430,3 @@ export default function CharacterDetailPage() {
     </div>
   );
 }
-
