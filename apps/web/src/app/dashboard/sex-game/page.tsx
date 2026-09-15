@@ -132,7 +132,7 @@ export default function SexGamePage() {
           relationshipType: relationshipType || "partner",
           scenario:
             scenario ||
-            `A passionate evening with ${characterName || "your partner"}`,
+            `${characterName || "Your partner"} is already dripping and begging to be fucked`,
           intensity,
           language,
           generateImage,
@@ -270,7 +270,7 @@ export default function SexGamePage() {
         {setupMode && (
           <div className="bg-gray-800/50 backdrop-blur border border-purple-500/20 rounded-2xl p-8 space-y-6">
             <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
-              Start Intimate Encounter
+              Start Hardcore Sex Game
             </h1>
 
             <div>
@@ -349,7 +349,7 @@ export default function SexGamePage() {
                 value={scenario}
                 onChange={(e) => setScenario(e.target.value)}
                 rows={3}
-                placeholder="Describe the setting…"
+                placeholder="She is already wet and on her knees…"
                 className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-500 resize-none"
               />
             </div>
@@ -382,7 +382,7 @@ export default function SexGamePage() {
               disabled={loading}
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-xl text-lg transition"
             >
-              {loading ? "Starting…" : "Begin Encounter"}
+              {loading ? "Starting…" : "Start Fucking"}
             </button>
           </div>
         )}
@@ -487,9 +487,9 @@ export default function SexGamePage() {
             {game.sessionComplete && (
               <div className="bg-blue-900/30 border border-blue-500/30 rounded-2xl p-6 text-center">
                 <p className="text-lg text-blue-200 mb-4">
-                  The encounter settles into aftercare with{" "}
-                  {sessionInfo?.characterName}. The experience was deeply
-                  intimate.
+                  You and{" "}
+                  {sessionInfo?.characterName} are a sticky, cum-soaked mess.
+                  Thick cream still leaks from used holes as you catch your breath.
                 </p>
                 <button
                   onClick={resetGame}
