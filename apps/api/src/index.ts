@@ -45,9 +45,23 @@ const app = express();
 
 app.set("trust proxy", config.trustProxy);
 app.disable("x-powered-by");
+
+/**
+ * CORS for web + Capacitor (Android WebView origin is typically https://localhost).
+ * credentials: true requires reflecting a specific allowed origin (not *).
+ */
 app.use(
   cors({
-    origin: config.cors.origin,
+    origin(origin, callback) {
+      // Non-browser clients (curl, native) often send no Origin
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (config.cors.origins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
     credentials: config.cors.credentials,
     maxAge: 600,
   }),
@@ -157,10 +171,12 @@ app.use(errorHandler);
 // ─── Bootstrap + graceful shutdown ──────────────────────────────────────
 
 const PORT = config.port;
-const server = app.listen(PORT, () => {
+// 0.0.0.0 so physical phones on LAN can reach the API (not only loopback)
+const HOST = process.env.API_HOST || "0.0.0.0";
+const server = app.listen(PORT, HOST, () => {
   logger.info(
-    { port: PORT, env: config.nodeEnv },
-    `API listening on :${PORT}`,
+    { port: PORT, host: HOST, env: config.nodeEnv, corsOrigins: config.cors.origins },
+    `API listening on ${HOST}:${PORT}`,
   );
 });
 
@@ -189,4 +205,3 @@ process.on("uncaughtException", (err) => {
 });
 
 export default app;
-

@@ -3,6 +3,14 @@ import { z } from "zod";
 
 dotenv.config();
 
+/** Origins always allowed for Capacitor Android/iOS WebViews */
+const CAPACITOR_ORIGINS = [
+  "https://localhost",
+  "http://localhost",
+  "capacitor://localhost",
+  "ionic://localhost",
+] as const;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().default(3001),
@@ -10,7 +18,13 @@ const envSchema = z.object({
   JWT_PRIVATE_KEY: z.string().optional(),
   JWT_PUBLIC_KEY: z.string().optional(),
   JWT_EXPIRE: z.string().default("12h"),
-  CORS_ORIGIN: z.string().url().default("http://localhost:3000"),
+  /**
+   * Comma-separated list of allowed web origins.
+   * Capacitor origins are always merged in (see parseCorsOrigins).
+   */
+  CORS_ORIGIN: z
+    .string()
+    .default("http://localhost:3000,https://localhost,capacitor://localhost"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   AWS_ACCESS_KEY_ID: z.string().optional(),
@@ -52,6 +66,14 @@ if (!parsed.data.JWT_SECRET && !(parsed.data.JWT_PRIVATE_KEY && parsed.data.JWT_
   process.exit(1);
 }
 
+function parseCorsOrigins(raw: string): string[] {
+  const fromEnv = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return Array.from(new Set([...fromEnv, ...CAPACITOR_ORIGINS]));
+}
+
 export const config = {
   port: parsed.data.API_PORT,
   nodeEnv: parsed.data.NODE_ENV,
@@ -61,7 +83,8 @@ export const config = {
   jwtExpire: parsed.data.JWT_EXPIRE,
   encryptionKey: parsed.data.ENCRYPTION_KEY,
   cors: {
-    origin: parsed.data.CORS_ORIGIN,
+    /** Allowed browser / Capacitor origins (credentials mode) */
+    origins: parseCorsOrigins(parsed.data.CORS_ORIGIN),
     credentials: true,
   },
   trustProxy: parsed.data.TRUST_PROXY,

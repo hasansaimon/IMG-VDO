@@ -18,11 +18,18 @@ export type AuthUser = {
   lastName?: string | null;
 };
 
+/**
+ * Single source of truth for API base URL (inlined at Next static-export build).
+ * Always set NEXT_PUBLIC_API_URL in .env.production before `npm run android:apk`.
+ * Never rely on localhost inside an APK — that is the phone itself.
+ */
 export function getApiBase(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-    "http://localhost:3001"
-  );
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (raw) {
+    return raw.replace(/\/$/, "");
+  }
+  // Dev-only fallback (browser on same machine)
+  return "http://localhost:3001";
 }
 
 export function getToken(): string | null {
