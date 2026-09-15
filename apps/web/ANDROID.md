@@ -96,3 +96,23 @@ Without a keystore, release builds may be unsigned and fail install on modern An
 # API must accept connections from the phone, not only loopback
 # Ensure server host 0.0.0.0 and CORS allows the Capacitor origin
 ```
+
+## Static export optimization
+
+`next.config.mjs` uses `output: "export"` → artifacts in `out/` (Capacitor `webDir`).
+
+| Setting | Why |
+|---------|-----|
+| `images.unoptimized` | No image optimizer server in APK |
+| `trailingSlash: true` | Reliable paths in WebView |
+| `optimizePackageImports` | Smaller JS for react-icons / date-fns / etc. |
+| `compiler.removeConsole` | Strip `console.log` from production APK |
+| `eslint.ignoreDuringBuilds` | Faster / lower-memory CI builds |
+| `NODE_OPTIONS=--max-old-space-size=4096` | Avoid OOM on `next build` |
+
+Low-RAM machines:
+
+```bash
+npm run build:lowmem
+```
+

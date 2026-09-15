@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
     "start": "next start",
     "cap:add": "cap add android",
     "cap:sync": "node scripts/cap-sync.mjs",
@@ -15,7 +15,10 @@
     "type-check": "tsc --noEmit",
     "test": "vitest",
     "android:apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease",
-    "android:apk:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug"
+    "android:apk:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "build:lowmem": "NODE_OPTIONS=--max-old-space-size=2048 next build",
+    "build:analyze": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "export": "npm run build"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",

@@ -16,6 +16,10 @@ const config: Config = {
     },
   },
   plugins: [],
+  // Keep CSS small in static export / WebView
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
 };
 
 export default config;

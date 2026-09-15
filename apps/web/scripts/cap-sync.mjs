@@ -1,15 +1,15 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { existsSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
-const ENV_FILE = '.env.production';
-const REQUIRED_KEY = 'NEXT_PUBLIC_API_URL';
+const ENV_FILE = ".env.production";
+const REQUIRED_KEY = "NEXT_PUBLIC_API_URL";
 
 function loadEnvFile() {
   if (!existsSync(ENV_FILE)) return {};
   const entries = {};
-  for (const line of readFileSync(ENV_FILE, 'utf8').split('\n')) {
+  for (const line of readFileSync(ENV_FILE, "utf8").split("\n")) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (match) entries[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+    if (match) entries[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
   return entries;
 }
@@ -23,11 +23,26 @@ if (!value) {
       `The static export inlines the API base URL at build time — without it every API call in the APK breaks.\n` +
       `Copy .env.production.example to ${ENV_FILE} and set your API server address, e.g.:\n` +
       `  NEXT_PUBLIC_API_URL=http://192.168.1.100:3001  (your machine's LAN IP for phone testing)\n` +
-      `or pass it inline: NEXT_PUBLIC_API_URL=http://... npm run cap:sync`
+      `or pass it inline: NEXT_PUBLIC_API_URL=http://... npm run cap:sync`,
   );
   process.exit(1);
 }
 
 console.log(`[cap:sync] Using API URL: ${value}`);
-execSync('next build && cap sync', { stdio: 'inherit', shell: process.platform === 'win32' });
+console.log(`[cap:sync] Building optimized static export → out/`);
 
+const env = {
+  ...process.env,
+  NODE_ENV: "production",
+  NEXT_PUBLIC_API_URL: value,
+  // Prefer 4GB heap for next build; override with NODE_OPTIONS if set
+  NODE_OPTIONS:
+    process.env.NODE_OPTIONS || "--max-old-space-size=4096",
+};
+
+const isWin = process.platform === "win32";
+execSync("next build && npx cap sync", {
+  stdio: "inherit",
+  shell: isWin,
+  env,
+});
