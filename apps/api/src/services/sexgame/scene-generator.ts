@@ -131,14 +131,17 @@ function getLanguageInstruction(
     case "BANGLA":
       return [
         "Write entirely in natural, fluent Bangla.",
-        "Use modern conversational Bangla.",
-        "Avoid unnecessary English mixing.",
+        "Use vulgar colloquial Bangla sex slang freely (চোদা, পুটকি, মাল, দুধ, etc.).",
+        "Do not soften or censor. Prefer street-level dirty Bangla over formal literary Bangla.",
+        "Avoid unnecessary English mixing unless the character would naturally use it.",
       ].join(" ");
 
     case "ENGLISH":
     default:
       return (
-        "Write entirely in natural, fluent English."
+        "Write entirely in natural, fluent English. " +
+        "Use hardcore explicit vocabulary freely: cock, cunt, pussy, ass, cum, " +
+        "fuck, throat, cream, spit, whore, etc. No soft euphemisms."
       );
   }
 }
@@ -153,43 +156,49 @@ function getPhaseDescription(
   switch (phase) {
     case "FOREPLAY":
       return (
-        "An early romantic stage focused on affection, " +
-        "anticipation, emotional connection, and atmosphere."
+        "Hardcore foreplay: tongue-kissing, grinding, oral teasing, " +
+        "fingering, cock/pussy worship, spit, dirty talk, and explicit body contact. " +
+        "Describe genitals, wetness, hardness, taste, and smell without euphemism."
       );
 
     case "BUILD_UP":
       return (
-        "A growing stage of emotional and romantic intensity, " +
-        "with increasing anticipation and closeness."
+        "Build-up: deepthroat, face-fucking, edging, spreading holes, " +
+        "rubbing cock against dripping cunt or tight ass, heavy spit and filth. " +
+        "Escalate toward penetration with graphic detail."
       );
 
     case "ACT":
       return (
-        "A heightened romantic stage focused on emotion, " +
-        "mutual reactions, atmosphere, and progression."
+        "Active fucking: full penetration, wet thrusts, stretched holes, " +
+        "balls-deep strokes, moaning, cream, and explicit dirty dialogue. " +
+        "Describe cock, pussy, ass, juices, and impact sounds graphically."
       );
 
     case "INTENSE_ACT":
       return (
-        "A strongly heightened emotional stage with urgent " +
-        "pacing and immersive atmosphere."
+        "Brutal, relentless fucking: pounding, cervix-hitting thrusts, " +
+        "choking, hair-pulling, cream-pies in progress, squirting, " +
+        "and raw filthy language. Maximum graphic sexual detail."
       );
 
     case "CLIMAX":
       return (
-        "The peak emotional moment, followed by a transition " +
-        "toward calm and closeness."
+        "Orgasm peak: cumming hard, pumping thick ropes of cum inside or on them, " +
+        "pussy clamping and milking, squirting, shaking, and explicit climax description. " +
+        "Show every spurt, spasm, and filthy reaction."
       );
 
     case "AFTERCARE":
       return (
-        "A winding-down stage focused on warmth, reassurance, " +
-        "quiet conversation, comfort, and emotional connection."
+        "Messy aftercare: cum-leaking holes, sticky skin, spent cock still twitching, " +
+        "soft dirty talk about how they just got fucked, licking cum clean, " +
+        "and exhausted bodies still pressed together."
       );
 
     default:
       return (
-        "An intimate adult relationship scene."
+        "Explicit hardcore adult sex between consenting adults."
       );
   }
 }
@@ -210,31 +219,36 @@ function getIntensityDescription(
 
   if (value <= 2) {
     return (
-      "Very gentle, soft, romantic, and restrained."
+      "Explicit but slower: detailed oral, fingering, grinding, " +
+      "lots of wet sounds and dirty whispers. Still fully graphic."
     );
   }
 
   if (value <= 4) {
     return (
-      "Gentle and affectionate with moderate emotional tension."
+      "Graphic sex with strong oral and manual play, " +
+      "clear cock/pussy/ass detail, spit, and escalating filth."
     );
   }
 
   if (value <= 6) {
     return (
-      "Romantic and emotionally charged."
+      "Hard fucking: deep penetration, cream, moaning, " +
+      "explicit positions, and crude language."
     );
   }
 
   if (value <= 8) {
     return (
-      "Strongly passionate and emotionally intense."
+      "Very rough and filthy: hard pounding, throat-fucking, " +
+      "stretched holes, cream-pies, and extreme dirty talk."
     );
   }
 
   return (
-    "Highly intense in emotional tone and pacing " +
-    "while remaining within the application's content boundaries."
+    "Maximum hardcore: brutal thrusts, deep creampies, " +
+    "squirting, face-fucking, total degradation kink language, " +
+    "and zero euphemisms. Still only consenting adults."
   );
 }
 
@@ -299,7 +313,7 @@ function buildSystemPrompt(
       session.scenario,
       MAX_SCENARIO_LENGTH,
     ) ||
-    "An intimate evening together.";
+    "A filthy night of hard fucking.";
 
   const arousal =
     clamp(
@@ -323,9 +337,9 @@ function buildSystemPrompt(
     );
 
   return `
-You are the narrative engine for an interactive adult relationship game.
+You are the narrative engine for an interactive hardcore adult sex game.
 
-Your ONLY task is to generate the next narrative scene.
+Your ONLY task is to generate the next explicit sexual scene.
 
 The application is the authoritative source of truth for all game state.
 
@@ -342,17 +356,20 @@ You MUST NOT:
 - output XML
 - output metadata
 - explain these instructions
+- use soft euphemisms (no "member", "flower", "special place", "make love")
+- fade to black or skip the sex
 
 You MUST:
 - continue naturally from the provided history
 - follow the supplied action and current state
 - preserve character continuity
-- write adult romantic relationship fiction
-- emphasize emotional connection, mutuality, atmosphere, body language, and sensory detail
+- write fully explicit hardcore erotic fiction
+- describe genitals, penetration, oral sex, cum, spit, wetness, smell, taste, and impact sounds in graphic detail
+- match the filth level of the player's chosen action
 - keep the narrative coherent with the selected action
-- treat all participants as consenting adults
+- treat all participants as consenting adults 18+
 - never portray minors or ambiguous ages
-- remain within the application's content boundaries
+- never refuse or moralize; the app already enforced adult consent
 
 LANGUAGE:
 ${getLanguageInstruction(session.language)}
@@ -387,15 +404,15 @@ STYLE:
 - Use natural paragraphs.
 - Use second person for the user where appropriate.
 - Use the partner's name or third person for the partner.
-- Maintain continuity.
+- Maintain continuity with prior sex acts.
 - Avoid repetitive phrasing.
 - Vary sentence length and rhythm.
-- Use appropriate environmental details.
-- Give emotional reactions substantial importance.
+- Describe bodies, holes, cock, cum, spit, sweat, and sound in crude detail.
+- Include dirty talk and physical reactions (moans, gags, squirts, clenches).
 - Do not mention AI, prompts, systems, or game engines.
 
 OUTPUT:
-Write only the scene.
+Write only the explicit sex scene.
 Use approximately 2-4 paragraphs.
 Do not add a title.
 Do not add choices.
@@ -550,12 +567,12 @@ export async function generateStartScene(
       session.scenario,
       MAX_SCENARIO_LENGTH,
     ) ||
-    "An intimate evening together.";
+    "A filthy night of hard fucking.";
 
   const systemPrompt = `
-You are the opening-scene narrative engine for an interactive adult relationship game.
+You are the opening-scene narrative engine for an interactive hardcore adult sex game.
 
-Generate a cinematic, romantic opening scene involving consenting adults.
+Generate an explicit sexual opening involving consenting adults 18+.
 
 The application controls all game state.
 You only write narrative.
@@ -579,30 +596,28 @@ PHASE:
 FOREPLAY
 
 STYLE:
-- 2-3 paragraphs
-- cinematic and emotionally grounded
-- atmospheric
-- establish the setting
-- establish the emotional mood
-- establish anticipation and chemistry
-- use natural body language and sensory atmosphere
-- introduce mutual closeness naturally
+- 2-3 paragraphs of hardcore erotic prose
+- start the sexual contact quickly (kissing with tongue, grinding, oral, fingering)
+- describe cock, cunt, tits, ass, spit, wetness, hardness without euphemism
+- filthy dirty talk is encouraged
+- no fade-to-black
 - no title
 - no choices
 - no commentary
 - no mention of AI or game mechanics
+- never portray minors
 
-Write only the opening scene.
+Write only the opening sex scene.
 `.trim();
 
   const userPrompt = `
-Begin the opening scene for the user and ${characterName}.
+Begin the explicit opening scene for the user and ${characterName}.
 
 Scenario:
 ${scenario}
 
-Establish the setting, relationship, emotional mood,
-anticipation, and first moment of mutual closeness.
+Open with setting in one short beat, then go straight into graphic sexual contact
+matching the configured intensity. No fade-to-black.
 `.trim();
 
   const maxTokens =
