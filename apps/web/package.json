@@ -9,11 +9,13 @@
     "start": "next start",
     "cap:add": "cap add android",
     "cap:sync": "node scripts/cap-sync.mjs",
-    "android:apk": "npm run cap:sync && cd android && ./gradlew assembleRelease",
+    "android:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",
     "type-check": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "android:apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease",
+    "android:apk:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",

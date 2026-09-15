@@ -160,7 +160,7 @@ export default function CharacterDetailPage() {
           name: name.trim(),
           description: description.trim() || undefined,
           background: background.trim() || undefined,
-          imageUrl: imageUrl || imagePreview || undefined,
+          imageUrl: (imageUrl && !imageUrl.startsWith("data:") ? imageUrl : undefined),
           personality:
             Object.keys(personalityTraits).length > 0
               ? personalityTraits

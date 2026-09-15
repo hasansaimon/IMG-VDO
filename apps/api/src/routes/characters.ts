@@ -5,10 +5,29 @@ import { prisma } from "../lib/prisma";
 
 const router = Router();
 
+const httpImageUrl = z
+  .string()
+  .url()
+  .max(2000)
+  .refine(
+    (u) => {
+      try {
+        const parsed = new URL(u);
+        return (
+          (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+          !u.toLowerCase().startsWith("data:")
+        );
+      } catch {
+        return false;
+      }
+    },
+    { message: "imageUrl must be an http(s) URL (data: URLs are not allowed)" },
+  );
+
 const createCharacterSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
-  imageUrl: z.string().url(),
+  imageUrl: httpImageUrl,
   personality: z.record(z.any()).optional(),
   appearance: z.record(z.any()).optional(),
   background: z.string().max(3000).optional(),

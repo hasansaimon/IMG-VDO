@@ -7,7 +7,7 @@ import {
   getAvailableChoices,
   processGameAction,
   generateStartScene,
-} from "../services/sexgame/service"; // ← adjust to your actual service filename if needed
+} from "../services/sexgame/service";
 
 const router = Router();
 
@@ -23,7 +23,7 @@ const startGameSchema = z.object({
   scenario: z.string().trim().max(500).optional(),
   language: z.enum(["ENGLISH", "BANGLA"]).default("ENGLISH"),
   intensity: z.number().int().min(1).max(10).default(9),
-  generateImage: z.boolean().default(false),
+  generateImage: z.boolean().default(false), // reserved; scene images not wired yet
 });
 
 const actionSchema = z.object({
