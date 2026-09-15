@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { getApiBase } from "../../../lib/auth";
 
 interface GameChoice {
   id: number;
@@ -100,10 +101,9 @@ export default function SexGamePage() {
     setCharactersLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/characters`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const res = await axios.get(`${getApiBase()}/api/characters`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const list = Array.isArray(res.data) ? res.data : res.data?.characters || [];
       setCharacters(
         list.map((c: any) => ({
@@ -125,7 +125,7 @@ export default function SexGamePage() {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/sex-game/start`,
+        `${getApiBase()}/api/sex-game/start`,
         {
           characterName: characterName || "Your Partner",
           characterId: characterId || undefined,
@@ -162,7 +162,7 @@ export default function SexGamePage() {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/sex-game/act`,
+        `${getApiBase()}/api/sex-game/act`,
         {
           sessionId,
           choiceId,
@@ -246,7 +246,7 @@ export default function SexGamePage() {
           {playing && (
             <button
               onClick={resetGame}
-              className="text-sm text-gray-400 hover:text-white transition"
+              className="text-sm text-gray-400 hover:text-white transition min-h-[44px]"
             >
               New Game
             </button>
@@ -285,7 +285,7 @@ export default function SexGamePage() {
                   const c = characters.find((x) => x.id === id);
                   if (c) setCharacterName(c.name);
                 }}
-                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white"
+                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white min-h-[44px]"
               >
                 <option value="">— Custom / none —</option>
                 {characters.map((c) => (
@@ -308,7 +308,7 @@ export default function SexGamePage() {
                 value={characterName}
                 onChange={(e) => setCharacterName(e.target.value)}
                 placeholder="Enter character name"
-                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-500"
+                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-500 min-h-[44px]"
               />
             </div>
 
@@ -321,7 +321,7 @@ export default function SexGamePage() {
                 onChange={(e) =>
                   setLanguage(e.target.value as "ENGLISH" | "BANGLA")
                 }
-                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white"
+                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white min-h-[44px]"
               >
                 <option value="ENGLISH">English</option>
                 <option value="BANGLA">Bangla</option>
@@ -337,7 +337,7 @@ export default function SexGamePage() {
                 value={relationshipType}
                 onChange={(e) => setRelationshipType(e.target.value)}
                 placeholder="partner, lover, …"
-                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-500"
+                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-500 min-h-[44px]"
               />
             </div>
 
@@ -368,7 +368,7 @@ export default function SexGamePage() {
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-300">
+            <label className="flex items-center gap-2 text-sm text-gray-300 min-h-[44px]">
               <input
                 type="checkbox"
                 checked={generateImage}
@@ -380,7 +380,7 @@ export default function SexGamePage() {
             <button
               onClick={startGame}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-xl text-lg transition"
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-xl text-lg transition min-h-[44px]"
             >
               {loading ? "Starting…" : "Start Fucking"}
             </button>
@@ -466,7 +466,7 @@ export default function SexGamePage() {
                       key={choice.id}
                       disabled={loading || choice.staminaCost > game.stamina}
                       onClick={() => makeChoice(choice.id)}
-                      className="w-full text-left bg-gray-800/70 hover:bg-purple-900/40 border border-purple-500/30 disabled:opacity-40 rounded-xl p-4 transition"
+                      className="w-full text-left bg-gray-800/70 hover:bg-purple-900/40 border border-purple-500/30 disabled:opacity-40 rounded-xl p-4 transition min-h-[44px]"
                     >
                       <div className="flex justify-between items-start gap-4">
                         <span className="text-gray-100">{choice.text}</span>
@@ -493,7 +493,7 @@ export default function SexGamePage() {
                 </p>
                 <button
                   onClick={resetGame}
-                  className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-xl font-medium"
+                  className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-xl font-medium min-h-[44px]"
                 >
                   Play Again
                 </button>
@@ -504,7 +504,7 @@ export default function SexGamePage() {
               <div>
                 <button
                   onClick={() => setShowHistory(!showHistory)}
-                  className="text-sm text-gray-400 hover:text-white"
+                  className="text-sm text-gray-400 hover:text-white min-h-[44px]"
                 >
                   {showHistory ? "Hide" : "Show"} history ({history.length})
                 </button>
